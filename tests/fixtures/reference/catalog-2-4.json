@@ -1,0 +1,56 @@
+[
+  {
+    "sponsor_id": 2,
+    "study_id": 4,
+    "item_code": "VISIT-SCR",
+    "description": "Screening Visit",
+    "category": "patient_visits",
+    "unit_price": "450.00",
+    "id": 118
+  },
+  {
+    "sponsor_id": 2,
+    "study_id": 4,
+    "item_code": "VISIT-BL",
+    "description": "Baseline Visit",
+    "category": "patient_visits",
+    "unit_price": "520.00",
+    "id": 119
+  },
+  {
+    "sponsor_id": 2,
+    "study_id": 4,
+    "item_code": "VISIT-MONTH6",
+    "description": "Month 6 Visit",
+    "category": "patient_visits",
+    "unit_price": "485.00",
+    "id": 120
+  },
+  {
+    "sponsor_id": 2,
+    "study_id": 4,
+    "item_code": "LAB-CMP",
+    "description": "Metabolic Panel",
+    "category": "lab_imaging",
+    "unit_price": "108.00",
+    "id": 121
+  },
+  {
+    "sponsor_id": 2,
+    "study_id": 4,
+    "item_code": "IMG-MRI",
+    "description": "MRI Brain",
+    "category": "lab_imaging",
+    "unit_price": "675.00",
+    "id": 122
+  },
+  {
+    "sponsor_id": 2,
+    "study_id": 4,
+    "item_code": "ADMIN-SITE",
+    "description": "Site Administration",
+    "category": "administrative",
+    "unit_price": "375.00",
+    "id": 123
+  }
+]

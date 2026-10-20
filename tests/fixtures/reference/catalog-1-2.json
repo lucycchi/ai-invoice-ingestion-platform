@@ -1,0 +1,92 @@
+[
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "VISIT-SCR",
+    "description": "Screening Visit",
+    "category": "patient_visits",
+    "unit_price": "425.00",
+    "id": 101
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "VISIT-BL",
+    "description": "Baseline Visit",
+    "category": "patient_visits",
+    "unit_price": "500.00",
+    "id": 102
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "VISIT-MONTH3",
+    "description": "Month 3 Visit",
+    "category": "patient_visits",
+    "unit_price": "475.00",
+    "id": 103
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "VISIT-MONTH6",
+    "description": "Month 6 Visit",
+    "category": "patient_visits",
+    "unit_price": "475.00",
+    "id": 104
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "VISIT-EOS",
+    "description": "End of Study Visit",
+    "category": "patient_visits",
+    "unit_price": "525.00",
+    "id": 105
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "PROC-ECG",
+    "description": "12-Lead ECG",
+    "category": "procedures",
+    "unit_price": "80.00",
+    "id": 106
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "LAB-CBC",
+    "description": "Complete Blood Count",
+    "category": "lab_imaging",
+    "unit_price": "90.00",
+    "id": 107
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "LAB-CMP",
+    "description": "Comprehensive Metabolic Panel",
+    "category": "lab_imaging",
+    "unit_price": "105.00",
+    "id": 108
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "LAB-LIPID",
+    "description": "Lipid Panel",
+    "category": "lab_imaging",
+    "unit_price": "75.00",
+    "id": 109
+  },
+  {
+    "sponsor_id": 1,
+    "study_id": 2,
+    "item_code": "ADMIN-SITE",
+    "description": "Site Administration",
+    "category": "administrative",
+    "unit_price": "325.00",
+    "id": 110
+  }
+]

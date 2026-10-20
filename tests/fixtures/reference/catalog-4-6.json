@@ -1,0 +1,38 @@
+[
+  {
+    "sponsor_id": 4,
+    "study_id": 6,
+    "item_code": "VISIT-ENROLL",
+    "description": "Enrollment Visit",
+    "category": "patient_visits",
+    "unit_price": "350.00",
+    "id": 131
+  },
+  {
+    "sponsor_id": 4,
+    "study_id": 6,
+    "item_code": "VISIT-ANNUAL",
+    "description": "Annual Follow-up Visit",
+    "category": "patient_visits",
+    "unit_price": "325.00",
+    "id": 132
+  },
+  {
+    "sponsor_id": 4,
+    "study_id": 6,
+    "item_code": "LAB-CBC",
+    "description": "CBC",
+    "category": "lab_imaging",
+    "unit_price": "85.00",
+    "id": 133
+  },
+  {
+    "sponsor_id": 4,
+    "study_id": 6,
+    "item_code": "ADMIN-REG",
+    "description": "Registry Administration",
+    "category": "administrative",
+    "unit_price": "250.00",
+    "id": 134
+  }
+]

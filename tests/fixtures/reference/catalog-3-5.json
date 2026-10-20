@@ -1,0 +1,65 @@
+[
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "VISIT-SCR",
+    "description": "Screening",
+    "category": "patient_visits",
+    "unit_price": "400.00",
+    "id": 124
+  },
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "VISIT-BL",
+    "description": "Baseline",
+    "category": "patient_visits",
+    "unit_price": "475.00",
+    "id": 125
+  },
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "VISIT-WK4",
+    "description": "Week 4",
+    "category": "patient_visits",
+    "unit_price": "450.00",
+    "id": 126
+  },
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "VISIT-WK12",
+    "description": "Week 12",
+    "category": "patient_visits",
+    "unit_price": "450.00",
+    "id": 127
+  },
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "LAB-CBC",
+    "description": "CBC",
+    "category": "lab_imaging",
+    "unit_price": "88.00",
+    "id": 128
+  },
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "LAB-HBA1C",
+    "description": "HbA1c",
+    "category": "lab_imaging",
+    "unit_price": "62.00",
+    "id": 129
+  },
+  {
+    "sponsor_id": 3,
+    "study_id": 5,
+    "item_code": "ADMIN-SITE",
+    "description": "Site Fee",
+    "category": "administrative",
+    "unit_price": "300.00",
+    "id": 130
+  }
+]

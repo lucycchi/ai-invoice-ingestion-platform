@@ -1,0 +1,66 @@
+[
+  {
+    "name": "Willow Creek Clinical Research Center",
+    "city": "Portland",
+    "state": "OR",
+    "country": "USA",
+    "pi_name": "Dr. Alex Morgan",
+    "id": 1
+  },
+  {
+    "name": "Harborview Medical Institute",
+    "city": "Chicago",
+    "state": "IL",
+    "country": "USA",
+    "pi_name": "Dr. Jordan Blake",
+    "id": 2
+  },
+  {
+    "name": "Highland Ridge Hospital - Research Unit",
+    "city": "Denver",
+    "state": "CO",
+    "country": "USA",
+    "pi_name": "Dr. Taylor Reed",
+    "id": 3
+  },
+  {
+    "name": "Eastbridge Clinical Trials Site",
+    "city": "Boston",
+    "state": "MA",
+    "country": "USA",
+    "pi_name": "Dr. Morgan Singh",
+    "id": 4
+  },
+  {
+    "name": "Seaside Research Associates",
+    "city": "San Diego",
+    "state": "CA",
+    "country": "USA",
+    "pi_name": "Dr. Casey Nguyen",
+    "id": 5
+  },
+  {
+    "name": "Prairie Field Research Group",
+    "city": "Kansas City",
+    "state": "MO",
+    "country": "USA",
+    "pi_name": "Dr. Riley Foster",
+    "id": 6
+  },
+  {
+    "name": "Central Clinical Trials Network",
+    "city": "Atlanta",
+    "state": "GA",
+    "country": "USA",
+    "pi_name": "Dr. Sam Rivera",
+    "id": 7
+  },
+  {
+    "name": "Ridgeview Medical Center",
+    "city": "Phoenix",
+    "state": "AZ",
+    "country": "USA",
+    "pi_name": "Dr. Quinn Brooks",
+    "id": 8
+  }
+]

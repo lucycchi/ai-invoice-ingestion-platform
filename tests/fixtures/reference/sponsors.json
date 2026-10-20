@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Northwind Pharma",
+    "code": "NWD",
+    "id": 1
+  },
+  {
+    "name": "Contoso Therapeutics",
+    "code": "CON",
+    "id": 2
+  },
+  {
+    "name": "Fabrikam Biopharma",
+    "code": "FAB",
+    "id": 3
+  },
+  {
+    "name": "Woodgrove Life Sciences",
+    "code": "WDL",
+    "id": 4
+  }
+]
