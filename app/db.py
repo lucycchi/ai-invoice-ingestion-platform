@@ -26,7 +26,7 @@ class Money(TypeDecorator):
 
 def make_engine(db_path: Path) -> Engine:
     """An engine for the SQLite file, in write-ahead logging mode with foreign keys on."""
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False, "timeout": 15})
 
     @event.listens_for(engine, "connect")
     def _on_connect(dbapi_connection, _record):

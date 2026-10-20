@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.config import Settings
 from app.db import make_engine, session_factory
 from app.models import Base
+from app.status import recover_interrupted
 
 
 def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
@@ -20,6 +21,9 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
         Base.metadata.create_all(engine)
         app.state.settings = settings
         app.state.sessions = session_factory(engine)
+        with app.state.sessions() as session:
+            recover_interrupted(session)
+            session.commit()
         app.state.claude = claude
         app.state.reference = reference
         yield

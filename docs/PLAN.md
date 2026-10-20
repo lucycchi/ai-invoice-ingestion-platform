@@ -74,7 +74,7 @@ in the task named.
 
 - [x] Task 1: app skeleton, settings, database and Docker service. Requirements: R1, R2, R3, R4, R5, R6
 - [x] Task 2: reference API client that fetches every page. Requirements: R6, R34, R35
-- [ ] Task 3: status guard, claims and restart recovery. Requirements: R27, R28, R29, R31, R33
+- [x] Task 3: status guard, claims and restart recovery. Requirements: R27, R28, R29, R31, R33
 - [ ] Task 4: upload screen, file checks and invoice list. Requirements: R7, R8, R9, R10, R53
 
 What the author can look at: `docker compose up --build` starts three containers; `http://localhost:8080`

@@ -36,3 +36,23 @@ def test_key_never_logged(settings, caplog):
     with TestClient(create_app(settings)) as client:
         client.get("/health")
     assert all("SECRET123" not in record.getMessage() for record in caplog.records)
+
+
+def test_startup_recovers_interrupted_work(settings):
+    from app.db import make_engine, session_factory
+    from app.models import Base, Invoice
+
+    settings.data_dir.mkdir(parents=True)
+    engine = make_engine(settings.data_dir / "app.db")
+    Base.metadata.create_all(engine)
+    with session_factory(engine)() as s:
+        s.add(Invoice(status="matching", original_filename="x.pdf", stored_path="x.pdf",
+                      media_type="application/pdf", uploaded_at="2026-10-21T09:00:00.000Z"))
+        s.commit()
+    engine.dispose()
+
+    with TestClient(create_app(settings)) as client:
+        client.get("/health")
+        with client.app.state.sessions() as s:
+            invoice = s.query(Invoice).one()
+    assert (invoice.status, invoice.status_reason) == ("matching_failed", "Interrupted by an app restart")
