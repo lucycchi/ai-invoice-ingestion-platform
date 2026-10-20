@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Invoice ingestion{% endblock %}</title>
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    :root { --ink: #1f2933; --muted: #616e7c; --line: #d9e2ec; --accent: #2457a6; --warn: #b44d12; --bad: #a61b1b; --ok: #1b7a3d; }
+    body { font-family: system-ui, sans-serif; color: var(--ink); max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; line-height: 1.45; }
+    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); margin-bottom: 1.5rem; }
+    header a { color: inherit; text-decoration: none; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: .85rem; color: var(--muted); font-weight: 600; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .message { padding: .75rem 1rem; border-left: 4px solid var(--bad); background: #fdf2f2; margin-bottom: 1rem; }
+    .note { padding: .75rem 1rem; border-left: 4px solid var(--warn); background: #fdf6ee; margin: .5rem 0; }
+    .status { font-size: .85rem; padding: .1rem .5rem; border-radius: 999px; background: #eef2f7; white-space: nowrap; }
+    .muted { color: var(--muted); }
+    button, .button { background: var(--accent); color: #fff; border: 0; padding: .5rem 1rem; border-radius: 4px; cursor: pointer; font: inherit; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header><a href="/">Invoice ingestion</a><span class="muted">Clinical trial site invoices</span></header>
+  {% block content %}{% endblock %}
+</body>
+</html>

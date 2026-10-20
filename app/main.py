@@ -2,12 +2,16 @@
 
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings
 from app.db import make_engine, session_factory
 from app.models import Base
 from app.status import recover_interrupted
+from app.web.routes import router
 
 
 def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
@@ -30,6 +34,9 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
         engine.dispose()
 
     app = FastAPI(title="AI Invoice Ingestion Platform", lifespan=lifespan)
+
+    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
+    app.include_router(router)
 
     @app.get("/health")
     def health():

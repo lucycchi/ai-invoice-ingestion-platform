@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ invoice.original_filename }}</h1>
+<p><span class="status">{{ status_label(invoice.status) }}</span></p>
+{% if invoice.status_reason %}<div class="message">{{ invoice.status_reason }}</div>{% endif %}
+{% endblock %}
