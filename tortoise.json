@@ -1,0 +1,12 @@
+{
+  "name": "AI Invoice Ingestion Platform",
+  "stage": "ideas",
+  "test_command": "pytest",
+  "approvals": [
+    {
+      "stage": "ideas",
+      "date": "2026-10-20",
+      "tag": "tortoise/ideas"
+    }
+  ]
+}
