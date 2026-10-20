@@ -1,6 +1,6 @@
 {
   "name": "AI Invoice Ingestion Platform",
-  "stage": "architecture",
+  "stage": "plan",
   "test_command": "pytest",
   "approvals": [
     {
@@ -17,6 +17,11 @@
       "stage": "architecture",
       "date": "2026-10-20",
       "tag": "tortoise/architecture"
+    },
+    {
+      "stage": "plan",
+      "date": "2026-10-20",
+      "tag": "tortoise/plan"
     }
   ]
 }
