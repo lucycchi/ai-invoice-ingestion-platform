@@ -160,6 +160,19 @@ can only propose a decision; only the author settles one.
 - **Choice:** One Python app (FastAPI, server-rendered pages with htmx, SQLite), code-based metadata matching, Claude for extraction and grouped, cached line matching
 - **Reason:** It meets every settled decision inside five days with the fewest moving parts for a reviewer to install and run, and keeps Claude where it adds the most: reading invoices and judging ambiguous line matches. Metadata matching in code is free, instant and unit-testable, and still produces the plain reasons the near-miss metadata decision (D8) requires. Accepted costs: plainer screens than a React app, and a restart during matching needs a Retry click. Keeps extraction, metadata matching and line-item matching as distinct modules, meeting the separation requirement. No required item is left unmet.
 
+## D12: How should line matching keep hostile text in one invoice line from affecting the matches for other lines?
+
+- **Status:** settled
+- **Proposed by:** Claude (claude-opus-5-5) on 2026-10-20
+- **Options:**
+  - Keep groups of up to six lines per Claude request, send each line as a separate data field with a reminder that descriptions are untrusted data, and test that every other line on a hostile-text invoice still gets its expected catalog item (about an hour; latency unchanged)
+  - Send one line per Claude request for true isolation (27 requests for the large invoice, roughly 45 to 60 seconds at five at a time, likely missing the 30-second target)
+- **Research:**
+  - [docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md): Codex found that lines sent together could let a hostile description pull its neighbours toward a wrong but valid catalog item, which ID checks cannot catch.
+  - [docs/SPEC.md](docs/SPEC.md): The invoice-text safety rule (R54) originally said no other line could be affected; it now says other lines are tested to still get their expected items.
+- **Choice:** Keep groups, separate data fields, and a test that other lines are unaffected
+- **Reason:** No prompt design can guarantee isolation, and one request per line would likely break the latency target (D9) for little practical gain on a single-user demo. Separate fields plus an explicit test give checkable evidence. This changes the wording of the invoice-text safety rule (R54) in the approved spec from a guarantee to a tested property; no required item from the brief is left unmet.
+
 ## Glossary
 
 - **Acknowledgment:** The user's explicit confirmation that they have seen the open problems, saved with the invoice.
@@ -175,6 +188,7 @@ can only propose a decision; only the author settles one.
 - **Finalize:** The last step, where the user marks the invoice as reviewed and done.
 - **First run and repeat run:** A run with nothing reused from before, and a run that can reuse saved work such as a cached prompt; repeat runs are usually faster.
 - **htmx:** A small JavaScript library that lets a server-rendered page update one part of itself, such as a progress bar, without a full front-end framework.
+- **Isolation:** Making sure one piece of input cannot influence how another is handled.
 - **JSON:** A plain-text format for structured data that both people and programs can read.
 - **Latency:** How long the user waits for a result.
 - **Locked:** Finalized invoices can no longer be changed.
@@ -186,6 +200,8 @@ can only propose a decision; only the author settles one.
 - **Picker:** A control that lets the user choose a sponsor, study or site from the reference data.
 - **Price flag:** A warning on a matched line whose invoice price differs from the catalog price.
 - **Prompt caching:** Claude reusing the unchanged start of a prompt between calls, which makes repeat calls faster and cheaper.
+- **Prompt injection:** Text inside the input that tries to give the AI new instructions.
+- **Rate limit:** A cap on how many requests an API accepts in a period of time.
 - **Scanned PDF:** A PDF made from a picture of paper, which has no selectable text inside it.
 - **Searchable list:** A drop-down the user can type into to filter the catalog items by name or code.
 - **SQLAlchemy:** A Python library that lets code talk to a database without writing raw SQL for every query.
