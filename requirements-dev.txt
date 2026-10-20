@@ -1,0 +1,5 @@
+-r app/requirements.txt
+pytest>=8.3
+pypdfium2>=4.30
+Pillow>=11.0
+reportlab>=4.2
