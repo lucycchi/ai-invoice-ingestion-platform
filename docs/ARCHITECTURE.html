@@ -50,7 +50,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <h2>Summary</h2>
 <p><strong>The problem.</strong> A clinical trial site sends an invoice to the drug company paying for the trial (the sponsor). Someone has to tie the invoice to the right sponsor, study and site, and check each billed line against the approved items and prices for that sponsor and study (the catalog). The take-home brief adds one hard rule: line items may only be matched after a person has confirmed the sponsor and study, because those decide which catalog applies.</p>
 <p><strong>The approach.</strong> One Python web app, built with FastAPI and plain server-rendered pages, runs as a third container next to the provided reference API and its Postgres database. It keeps its own data in an SQLite file on a Docker volume. Claude (<code>claude-opus-5-5</code>) reads each uploaded file and later suggests a catalog item for each line. Matching the invoice's header facts to sponsors, studies and sites is ordinary code. Every step is guarded by a stored status on the invoice, and the server refuses any step whose status is wrong, which is what makes the confirmation gate real.</p>
-<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. All four milestones are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions, the confirmation gate, line matching, price flags, the review screen, finalizing, the JSON download, the live tests and delivery.</p>
+<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. All four milestones are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions, the confirmation gate, line matching, price flags, the review screen, finalizing, the JSON download, the live tests, the browser tests and delivery.</p>
 <p>Requirements are referred to by name with their spec number in brackets, such as "the gate refusing early matching (R28)".</p>
 <h2>Diagrams in this document</h2>
 <table>
@@ -104,7 +104,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     store["Data store&lt;br/&gt;(SQLite tables)"]
 
     pages --&gt;|"asks to start or change a step"| status
-    pages --&gt;|"hands claimed work"| runner
+    pages --&gt;|"starts work it has claimed"| runner
     runner --&gt;|"runs reading"| extract
     extract --&gt;|"asks for suggestions after storing the reading"| meta
     runner --&gt;|"runs matching"| lines
@@ -118,13 +118,13 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>Eleven parts, each one module (section 12 gives the file names):</p>
 <ol>
 <li><strong>Web pages and form handlers</strong> show each screen and receive the user's actions.</li>
-<li><strong>Status guard</strong> is the only code that changes an invoice's status. It checks that the requested</li>
+<li><strong>Status guard</strong> is the only code that changes an invoice's status once the invoice exists. It</li>
 </ol>
-<p>action is allowed from the current status and claims the invoice in one database update (the one-at-a-time claim, R29).</p>
+<p>checks that the requested action is allowed from the current status and claims the invoice in one database update (the one-at-a-time claim, R29). It does not start any work itself. (The upload handler creates a new invoice directly in the extracting status, so there is nothing to claim.)</p>
 <ol>
-<li><strong>Background runner</strong> runs claimed work after the page has answered, so the browser never waits</li>
+<li><strong>Background runner</strong> runs work after the page has answered, so the browser never waits on</li>
 </ol>
-<p>on Claude.</p>
+<p>Claude. The route handlers start it themselves, once their claim has succeeded: the upload and Retry handlers and the Confirm handler each call the runner's start function.</p>
 <ol>
 <li><strong>Extraction step</strong> sends the uploaded file to Claude and stores what comes back.</li>
 <li><strong>Metadata matching step</strong> suggests a sponsor, study and site with confidence levels and reasons,</li>
@@ -228,6 +228,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
         VARCHAR started_at "time the server received the request, as ISO 8601 text"
         VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
         VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
+        VARCHAR ended_at "time the run finished, whatever its outcome, as ISO 8601 text"
         INTEGER claude_requests "whole number: number of calls to Claude"
         INTEGER input_tokens "whole number: tokens sent"
         INTEGER output_tokens "whole number: tokens received"
@@ -250,7 +251,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li>Each invoice has a list of runs, one per extraction or matching attempt (the timing</li>
 </ul>
-<p>record, R51).</p>
+<p>record, R51). The run is opened by the request that asked for the work (the upload, Retry or Confirm), with the time that request arrived. Every run gets an end time when it finishes, whether it succeeded or failed; when a failure or an app restart cuts a run short, the status guard's failure and restart-recovery code closes the run with that end time and the failure as its outcome. A database made by an earlier version, before the end time existed, gains that column when the app starts (SQLAlchemy's table creation never changes an existing table, so the database module adds it).</p>
 <p>Going back to change the metadata (the going-back rule, R32) deletes that invoice's line matches and catalog snapshot, keeps its line items and extraction, and its runs stay as history.</p>
 <p><strong>One made-up example row per table</strong> (from the medium sample invoice):</p>
 <table>
@@ -262,7 +263,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td>metadata_suggestions</td><td>id 20, invoice_id 7, field <code>study</code>, entity_id 1, entity_name <code>LUMIN-2024</code>, confidence <code>exact</code>, reasons <code>["Protocol NWD-LUM-2024-001 matches exactly."]</code></td></tr>
 <tr><td>catalog_snapshot</td><td>id 301, invoice_id 7, catalog_item_id 27, item_code <code>ADMIN-IRB</code>, description <code>IRB Submission and Maintenance</code>, unit_price <code>500.00</code></td></tr>
 <tr><td>line_matches</td><td>id 71, line_item_id 71, ai_catalog_item_id 27, ai_confidence <code>high</code>, override_kind <code>none</code>, price_flag <code>{"invoice":"550.00","catalog":"500.00","diff":"50.00","pct":"10.0","text":"Invoice $550.00, catalog $500.00, +$50.00 (+10%)"}</code></td></tr>
-<tr><td>runs</td><td>id 15, invoice_id 7, step <code>matching</code>, claude_requests 2, input_tokens 6400, output_tokens 900, cache_read_tokens 0, cache_applied 0, outcome <code>succeeded</code></td></tr>
+<tr><td>runs</td><td>id 15, invoice_id 7, step <code>matching</code>, ended_at <code>2026-10-21T14:03:20.102Z</code>, claude_requests 2, input_tokens 6400, output_tokens 900, cache_read_tokens 0, cache_applied 0, outcome <code>succeeded</code></td></tr>
 </tbody>
 </table>
 <h2>4. Request flows</h2>
@@ -277,7 +278,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     participant A as Reference API client
 
     U-&gt;&gt;P: 1. uploads one file
-    P-&gt;&gt;P: 2. checks size, type from contents, then image size or PDF pages
+    P-&gt;&gt;P: 2. refuses an oversized upload as it arrives, then checks size, type from contents, image size or PDF pages
     P-&gt;&gt;P: 3. saves the file, creates invoice in extracting status
     P--&gt;&gt;U: 4. redirects to the invoice page
     P-&gt;&gt;R: 5. starts extraction in the background
@@ -292,19 +293,19 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>This shows what happens from upload until the confirmation screen is ready.</p>
 <ol>
 <li>The person picks one file on the upload screen.</li>
-<li>The page handler refuses a request holding more than one file (422), reads at most 10 MB plus one</li>
+<li>Before the form is even parsed, the upload size guard (a small layer wrapped around the whole</li>
 </ol>
-<p>byte, and checks the 10 MB limit, the type from the file's first bytes, then the 7 MB image limit or, for PDFs, the 20-page limit and that the PDF opens without a password (the upload checks, R7 and R8). A failure answers at once with HTTP 413 for too large, 415 for a wrong type, or 422 for an unreadable PDF, and nothing is stored.</p>
+<p>app, an ASGI middleware) watches the upload as it arrives. If the request says it is larger than 10 MB plus 64 KB of room for the form's own fields, or turns out to be larger while it streams in, it is cut off at once and answered with HTTP 413 and a "File too large" page in the app's own layout, so an oversized file is never written to temporary storage. The page handler then refuses a request holding more than one file (422), reads at most 10 MB plus one byte, and checks the 10 MB limit, the type from the file's first bytes, then the 7 MB image limit or, for PDFs, the 20-page limit and that the PDF opens without a password (the upload checks, R7 and R8). A failure answers at once with HTTP 413 for too large, 415 for a wrong type, or 422 for an unreadable PDF, and nothing is stored.</p>
 <ol>
 <li>The file is saved under a generated name (the safe storage rule, R9) and a new invoice row is</li>
 </ol>
-<p>created directly in the extracting status.</p>
+<p>created directly in the extracting status, together with an open extraction run timed from the upload. (No claim is needed: the invoice is new.)</p>
 <ol>
 <li>The browser is sent to the invoice page, which shows "Reading your invoice…" and asks for progress</li>
 </ol>
 <p>about once a second.</p>
 <ol>
-<li>The status guard hands the extraction to the background runner.</li>
+<li>The upload handler starts the extraction through the background runner.</li>
 <li>The Claude client sends the file as a document (PDF) or an image, with the fixed answer shape</li>
 </ol>
 <p>(section 6), and a 120-second timeout.</p>
@@ -315,7 +316,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ol>
 <li>The arithmetic checks run, then the reading and its warnings are stored (the arithmetic rule, R16).</li>
 </ol>
-<p>Each line's quantity times unit price is rounded to the cent before it is compared with the amount. A line with a missing quantity, unit price or amount gets the warning "Line N: this line's arithmetic couldn't be checked because a number is missing.", and the total check leaves out lines with no amount and says how many. Money printed with currency codes or symbols (such as <code>USD 2,230.00</code> or <code>€475</code>) or as an accounting negative (<code>(50.00)</code>) is read normally; a value that still can't be read as a number is stored as missing with a warning quoting how it was printed, and an unreadable printed total is reported as such rather than as "no total printed". If Claude said it is not an invoice, the status becomes extraction failed instead (R13). A Retry's reading is timed from when Retry was pressed; the first reading from the upload.</p>
+<p>Each line's quantity times unit price is rounded to the cent before it is compared with the amount, and the amount is rounded to the cent too; the lines' sum and the printed total are also compared to the cent, so a difference of less than half a cent is never a warning. A line with a missing quantity, unit price or amount gets the note "Line N: this line's arithmetic couldn't be checked because a number is missing.", and the total check leaves out lines with no amount and says how many. Notes that a check was skipped ("No total is printed, so the total was not checked.", an unreadable printed total, or a line with a missing number) are shown with the warnings but are not counted as arithmetic warnings in the review summary or the finalize summary; only real mismatches are counted. Money printed with currency codes or symbols (such as <code>USD 2,230.00</code> or <code>€475</code>) or as an accounting negative (<code>(50.00)</code>) is read normally; a value that still can't be read as a number is stored as missing with a warning quoting how it was printed, and an unreadable printed total is reported as such rather than as "no total printed". If Claude said it is not an invoice, the status becomes extraction failed instead (R13). A Retry's reading is timed from when Retry was pressed; the first reading from the upload.</p>
 <ol>
 <li>Metadata matching starts straight away, in the same background job.</li>
 <li>It fetches all sponsors, studies, sites and study-site links through the reference API client.</li>
@@ -344,8 +345,8 @@ li.task.done .box { background: var(--accent); color: var(--background); }
         P-&gt;&gt;G: 5. asks to move to matching
         G-&gt;&gt;G: 6. one update, only from awaiting confirmation
         G--&gt;&gt;P: 7. claim won, or refused
-        P--&gt;&gt;U: 8. shows progress, or the refusal
-        P-&gt;&gt;R: 9. starts line matching
+        P-&gt;&gt;R: 8. starts line matching
+        P--&gt;&gt;U: 9. shows progress, or the refusal
     end</pre>
 <p>This shows the gate: the only way into line matching.</p>
 <ol>
@@ -368,12 +369,14 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ol>
 <p>Conflict naming the current status (the gate refusing early matching, R28). A double click lands here.</p>
 <ol>
-<li>Otherwise the browser is sent to the review page, which shows "Matching line items: 0 of N done".</li>
-<li>The guard hands line matching to the background runner, recording the time the request was</li>
+<li>Otherwise the handler opens the matching run, timed from when the request was received (the</li>
 </ol>
-<p>received as the start of the matching run (the timing record, R51).</p>
+<p>timing record, R51), and starts line matching through the background runner.</p>
+<ol>
+<li>The browser is sent to the review page, which shows "Matching line items: 0 of N done".</li>
+</ol>
 <p><strong>Warnings while choosing.</strong> Whenever the person changes the sponsor, study or site picker, the page asks the server to redraw the warnings for the current choice: the site not being linked to the study (the cross-check, R22) and an earlier upload with the same invoice number whose site is currently confirmed as the same one (the duplicate warning, R25). Neither warning blocks Confirm.</p>
-<p>There is no other route that starts matching. Retry from matching failed uses the same guard, with matching failed as the only allowed starting status.</p>
+<p>There is no other route that starts matching. Retry from matching failed uses the same guard, with matching failed as the only allowed starting status, and then starts matching the same way.</p>
 <h3>4.3 Matching line items</h3>
 <pre class="mermaid">sequenceDiagram
     participant R as Background runner
@@ -415,13 +418,13 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ol>
 <li>If it is at least the model's minimum cacheable length and there is more than one group, the</li>
 </ol>
-<p>first group of up to six lines is sent alone so it writes the cache (the batching rule, R37). The run records the cache as used only if that first request succeeded. If counting fails, or the prompt is too short, this step is skipped.</p>
+<p>first group of up to six lines is sent alone so it writes the cache (the batching rule, R37). The run records the cache as used only if that first request succeeded. The minimum comes from a table of models and their shortest cacheable prompt start in the Claude client (512 tokens for <code>claude-opus-5-5</code>); a model missing from the table is given the table's largest value, 4096, so an unknown model is never assumed to cache. If counting fails, or the prompt is too short, this step is skipped. The counting call itself counts as one request in the run's numbers.</p>
 <ol>
 <li>The remaining groups are sent at the same time, at most five requests at once.</li>
 <li>Each request returns one structured answer for its group (section 6).</li>
 <li>Each answer is checked: one result per line, every catalog ID (including alternatives) in the</li>
 </ol>
-<p>snapshot, at most two alternatives (R40). Accepted lines are kept; only the lines whose answers failed the checks are sent once more, as one request. Price flags are then worked out (R43, R44). (Separately, the Claude client already tries up to three times for errors and unreadable answers, section 6; this resend is for answers that arrived but named lines or items wrongly.)</p>
+<p>snapshot, at most two alternatives (R40). Accepted lines are kept; only the lines whose answers failed the checks are sent once more, as one request. If the answer for a line still can't be used after that resend, the line is left without a result (it is not stored as "no match"). Price flags are then worked out (R43, R44). (Separately, the Claude client already tries up to three times for errors and unreadable answers, section 6; this resend is for answers that arrived but named lines or items wrongly.)</p>
 <ol>
 <li>Each accepted line's result and flag are saved straight away, so the next progress check shows</li>
 </ol>
@@ -429,7 +432,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ol>
 <li>When every line has a result, the status becomes in review and the stored time is recorded. If</li>
 </ol>
-<p>any line is still without one, the status becomes matching failed with the reason (R40, R41), and the run's stored time stays empty, since no "last result" moment exists. An unexpected error in a group (such as a database lock) is caught in that group, so the run's counts and reason are still recorded. The matching-failed screen lists every line, marking those without a result.</p>
+<p>any line is still without one, the status becomes matching failed with the reason (R40, R41), such as "The AI's answer for 2 lines could not be used", and the run's stored time stays empty, since no "last result" moment exists. Either way the run's end time is recorded. An unexpected error in a group (such as a database lock) is caught in that group, so the run's counts and reason are still recorded. The matching-failed screen lists every line, marking those without a result.</p>
 <h3>4.4 Overriding a match</h3>
 <pre class="mermaid">sequenceDiagram
     actor U as Person
@@ -455,7 +458,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li>The person chooses an item, or "No match".</li>
 <li>The handler asks the status guard to save the override. The guard opens one database</li>
 </ol>
-<p>transaction that first re-reads the status with a write lock and only continues if it is in review.</p>
+<p>transaction that opens with an update changing nothing, made only if the status is in review. That one statement both takes SQLite's write lock and checks the status (the status guard's write lock, D14); if no row matched, the handler goes no further.</p>
 <ol>
 <li>Any other status ends the transaction with HTTP 409; a finalized invoice can never change (R33).</li>
 </ol>
@@ -489,22 +492,25 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>This shows finalizing with acknowledged open problems, then the download.</p>
 <ol>
 <li>The person presses Finalize on the review screen.</li>
-<li>The page counts no-match lines, price flags and arithmetic warnings, using current values.</li>
+<li>The page counts no-match lines, price flags and arithmetic warnings, using current values. Notes</li>
+</ol>
+<p>that an arithmetic check was skipped are not counted (section 4.1, step 8).</p>
+<ol>
 <li>The summary is shown, such as "3 lines with no match, 1 price difference, 0 arithmetic warnings"</li>
 </ol>
 <p>(the finalize rule, R49).</p>
 <ol>
 <li>The person confirms it. The form sends back the counts it showed.</li>
-<li>The status guard claims the move from in review to finalized. If the counts sent back no longer</li>
+<li>The status guard claims the move from in review to finalized. The counts are recomputed while the</li>
 </ol>
-<p>match the current ones, the request is refused and the summary is shown again.</p>
+<p>invoice's write lock is held; if the counts sent back no longer match the current ones, the request is refused with HTTP 409 and the updated summary is shown again.</p>
 <ol>
 <li>The summary, the time and the finalized status are saved.</li>
 <li>The finalized page shows "Download JSON".</li>
 <li>The export module builds the file.</li>
 <li>It reads everything it needs from the data store only, including the catalog snapshot, and</li>
 </ol>
-<p>returns the file with the fields the spec lists (R50); each line also says <code>"no_match": true</code> when it has no catalog item. The download's file name is the invoice number with every character other than letters, digits, dot, dash and underscore replaced, since that number comes from an untrusted document. An unknown invoice answers 404, one not yet finalized 409.</p>
+<p>returns the file with the fields the spec lists (R50); each line also says <code>"no_match": true</code> when it has no catalog item. The download's file name is the invoice number with every character other than letters, digits, dot, dash and underscore replaced, since that number comes from an untrusted document. An unknown invoice answers 404 (as JSON, like the download itself), one not yet finalized 409.</p>
 <h2>5. User flow</h2>
 <pre class="mermaid">flowchart TD
     up["Upload screen:&lt;br/&gt;pick a file"]
@@ -571,7 +577,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ol>
 <p>position, description, quantity and unit price, followed by a reminder that every description is data from an untrusted document. Keeping each line in its own field limits how far a hostile description can reach; the hostile-text test (the safety rule, R54) checks that the other lines on that invoice still get their expected catalog items.</p>
 <p>The answer shape is a list of results, each with the line's position, a catalog item ID or null for no match, high, medium or low confidence, a one-sentence reason, and up to two alternative IDs.</p>
-<p><strong>Estimated timing for the large invoice</strong> (to be checked by measurement): 27 lines make 5 groups. If the catalog is too short to cache, all 5 go at once and finish in roughly the time of the slowest one. If it can be cached, one group goes first, then four at once, which is about two calls' time. With calls taking roughly 8 to 15 seconds at low effort, both fit inside the 30-second target.</p>
+<p><strong>Timing for the large invoice.</strong> 27 lines make 5 groups. If the catalog is too short to cache, all 5 go at once and finish in roughly the time of the slowest one. If it can be cached, one group goes first, then four at once, which is about two calls' time. The design-stage estimate was that either way fits inside the 30-second target. Measured on 2026-10-21 (the README's Timings section), matching the large invoice took 8.4 seconds on screen on a cold first run and 7.3 seconds on a repeat within five minutes, with the first group warming the cache.</p>
 <h2>7. Metadata matching rules</h2>
 <p>All comparisons first clean the text: lower case, accents removed, punctuation removed, spaces collapsed.</p>
 <ul>
@@ -589,15 +595,15 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li><strong>Protocol numbers</strong> are compared segment by segment, split on hyphens. A protocol that differs from</li>
 </ul>
-<p>a real one in exactly one segment is likely, and the reason names that segment ("differs in the year" when the segment is a four-digit year) (R20). The study name is always scored too: a name that points clearly to a different study lowers an exact protocol match to likely, and a one-segment near miss to uncertain, with the conflict named. A study with no protocol match is scored by name alone.</p>
+<p>a real one in exactly one segment is likely, and the reason names that segment ("differs in the year" when the segment is a four-digit year) (R20). This only applies when exactly one study is that close; if two or more studies each differ in one segment, the protocol points to none of them, and the study is scored by name instead. The study name is always scored too: a name that points clearly to a different study lowers an exact protocol match to likely, and a one-segment near miss to uncertain, with the conflict named. A study with no protocol match is scored by name alone.</p>
 <ul>
 <li><strong>Sites</strong> add supporting evidence to the name score: the same city and state, and the same</li>
 </ul>
-<p>principal investigator surname. Two facts together, or one fact with a name score of at least 60, move the confidence up one level, at most to likely (R21). An exact site name whose printed city, state or investigator disagrees with the record is likely, not exact, with the disagreement named.</p>
+<p>principal investigator surname. When choosing the best candidate site, each supporting fact adds 10 points to that site's name score, so the evidence can decide between close names. Two facts together, or one fact with a name score of at least 60, then move the confidence up one level, at most to likely (R21). An exact site name whose printed city, state or investigator disagrees with the record is likely, not exact, with the disagreement named.</p>
 <ul>
 <li><strong>Cross-checks</strong> then run as the spec describes (R22): study against sponsor; sponsor taken from</li>
 </ul>
-<p>the study (never rated above the study's own level); and a site not linked to the study lowering the site's confidence by one level. The confirmation screen shows the site-link and duplicate warnings as soon as it loads, and redraws them when a picker changes.</p>
+<p>the study (never rated above the study's own level); and a site not linked to the study lowering the site's confidence by one level. If that lowers the site to not found, the suggested site is cleared (its name stays in the reason), so the site picker starts empty rather than on a site the app does not stand behind. The confirmation screen shows the site-link and duplicate warnings as soon as it loads, and redraws them when a picker changes.</p>
 <p>Every expected example in the spec (R19, R20, R21 and the four sample invoices) is a unit test, so the thresholds can be tuned without guessing.</p>
 <h2>8. Data flow (what leaves the laptop)</h2>
 <pre class="mermaid">flowchart LR
@@ -619,7 +625,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>This shows which data leaves the laptop: only the arrows to the Claude API do. The whole invoice file goes to Anthropic once per reading attempt, and during matching each request carries one group of line descriptions, quantities and prices plus the full catalog. Nothing else leaves: the reference API, the app database and the uploaded files all stay on the laptop, and the API key travels only as the request header to Anthropic. The sample data is fictional, but a real site invoice could hold personal data, which the README's write-up should note.</p>
 <h2>9. Background work and retries</h2>
 <pre class="mermaid">flowchart TD
-    claim["Status guard claims the invoice"]
+    claim["Route handler claims the invoice&lt;br/&gt;(or creates it, on upload)"]
     task["Background task starts"]
     askclaude["Call Claude"]
     ok{"Answer usable?"}
@@ -628,7 +634,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     fail["Set the failure status with the reason"]
     advance["Set the next status"]
 
-    claim --&gt;|"claimed work"| task
+    claim --&gt;|"handler starts the work"| task
     task --&gt;|"one request"| askclaude
     askclaude --&gt;|"answer or error"| ok
     ok --&gt;|"yes"| save
@@ -652,11 +658,11 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li>Every background job runs inside a catch-all. Any error that isn't a handled Claude or reference</li>
 </ul>
-<p>API failure, such as a missing stored file or a database error, sets the running step's failure status with the reason "Unexpected error (&lt;error type&gt;); details are in the app log" and is logged, so an invoice never stays in extracting or matching while nothing is running. A missing stored file gives the reason "The uploaded file is missing; please upload it again", since Retry cannot fix that.</p>
+<p>API failure, such as a missing stored file or a database error, sets the running step's failure status with the reason "Unexpected error (&lt;error type&gt;); the app log records where it happened", so an invoice never stays in extracting or matching while nothing is running. The log entry holds only the error's type and where it happened (file, line, function and code line), never the error's own text, which could repeat content read from an invoice. A missing stored file gives the reason "The uploaded file is missing; please upload it again", since Retry cannot fix that. Moving to the failure status also closes the step's open run, with its end time and the failure as its outcome.</p>
 <ul>
 <li>When the app starts, before taking any requests, it moves every invoice still in extracting or</li>
 </ul>
-<p>matching to its failure status with "Interrupted by an app restart" (R31). Background tasks do not survive a restart, which the spec accepts.</p>
+<p>matching to its failure status with "Interrupted by an app restart" (R31), and closes every run left open the same way. Background tasks do not survive a restart, which the spec accepts.</p>
 <h2>10. The invoice's status</h2>
 <pre class="mermaid">stateDiagram-v2
     [*] --&gt; extracting: file accepted
@@ -681,26 +687,27 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td><code>POST /invoices</code></td><td>Accepts one upload, starts extraction</td><td>413 too large, 415 wrong type, 422 unreadable PDF or several files</td></tr>
 <tr><td><code>GET /invoices/{id}</code></td><td>The invoice's current screen</td><td>404 unknown invoice</td></tr>
 <tr><td><code>GET /invoices/{id}/progress</code></td><td>Part of a page, polled about once a second</td><td></td></tr>
-<tr><td><code>GET /invoices/{id}/studies?sponsor_id=</code></td><td>Study picker choices for a sponsor</td><td></td></tr>
+<tr><td><code>GET /invoices/{id}/studies?sponsor_id=</code></td><td>Study picker choices for a sponsor</td><td>503 reference API unreachable (the picker shows the error as its only choice)</td></tr>
 <tr><td><code>GET /invoices/{id}/warnings?sponsor_id=&amp;study_id=&amp;site_id=</code></td><td>Redraws the site-link and duplicate warnings for the current choice</td><td></td></tr>
 <tr><td><code>POST /invoices/{id}/confirm</code></td><td>Confirms sponsor, study and site; starts matching</td><td>409 wrong status, 422 invalid choice, 503 reference API unreachable</td></tr>
-<tr><td><code>GET /invoices/{id}/change-metadata</code></td><td>The warning of how many matches and overrides will be cleared</td><td>409 wrong status</td></tr>
+<tr><td><code>GET /invoices/{id}/change-metadata</code></td><td>The warning of how many matches and overrides will be cleared</td><td>404 unknown invoice, 409 wrong status</td></tr>
 <tr><td><code>POST /invoices/{id}/change-metadata</code></td><td>Clears matches, overrides, the catalog snapshot and the confirmed choices; back to awaiting confirmation</td><td>409 wrong status</td></tr>
-<tr><td><code>POST /invoices/{id}/retry</code></td><td>Reruns the failed step</td><td>409 wrong status</td></tr>
+<tr><td><code>POST /invoices/{id}/retry</code></td><td>Reruns the failed step</td><td>404 unknown invoice, 409 wrong status</td></tr>
 <tr><td><code>GET /invoices/{id}/catalog?q=</code></td><td>Searches the catalog snapshot for a picker</td><td></td></tr>
 <tr><td><code>POST /invoices/{id}/lines/{line_id}/override</code></td><td>Saves an override or "No match"; choosing the AI's own suggestion clears the override</td><td>404 line not on this invoice, 409 wrong status or line without a result, 422 item not in this invoice's catalog or nothing chosen</td></tr>
 <tr><td><code>POST /invoices/{id}/lines/{line_id}/undo</code></td><td>Removes an override</td><td>404 line not on this invoice, 409 wrong status or line without a result</td></tr>
 <tr><td><code>POST /invoices/{id}/shown</code></td><td>The review page, reached straight from live matching, reports that every result is on screen; recorded only once the run has stored every result, only the first time (a write that only succeeds while no time is recorded), and answers with the updated times</td><td>409 run not finished</td></tr>
-<tr><td><code>GET /invoices/{id}/finalize</code></td><td>The summary to confirm</td><td>409 wrong status</td></tr>
+<tr><td><code>GET /invoices/{id}/finalize</code></td><td>The summary to confirm</td><td>404 unknown invoice, 409 wrong status</td></tr>
 <tr><td><code>POST /invoices/{id}/finalize</code></td><td>Finalizes with the confirmed summary</td><td>409 wrong status or changed counts</td></tr>
-<tr><td><code>GET /invoices/{id}/export.json</code></td><td>The JSON download</td><td>409 not finalized</td></tr>
+<tr><td><code>GET /invoices/{id}/export.json</code></td><td>The JSON download</td><td>404 unknown invoice, 409 not finalized</td></tr>
 <tr><td><code>GET /health</code></td><td>Says whether the app is up</td><td></td></tr>
 </tbody>
 </table>
-<p>Every <code>POST</code> route also answers 403 to a request from another website, and the app answers 400 to any host name other than <code>localhost</code> or <code>127.0.0.1</code> (section 12, <code>cross_site.py</code>). All pages use Jinja2 templates with automatic escaping turned on, so invoice and Claude text is always shown as text (R53). htmx is served from the app's own static folder, with no outside download at run time.</p>
+<p>Every <code>POST</code> route also answers 403 to a request from another website, and the app answers 400 to any host name other than <code>localhost</code> or <code>127.0.0.1</code> (section 12, <code>cross_site.py</code>). A <code>POST /invoices</code> whose body is over the upload limit is answered 413 by the upload size guard before the route sees it (section 4.1). Any 404 on a page (an unknown invoice, a line not on the invoice, or an address that doesn't exist) shows an HTML "not found" page in the app's layout; only the JSON download keeps answering 404 in JSON. All pages use Jinja2 templates with automatic escaping turned on, so invoice and Claude text is always shown as text (R53). htmx is served from the app's own static folder, with no outside download at run time.</p>
 <h2>12. Code structure</h2>
 <pre class="mermaid">flowchart TB
-    main["app/main.py&lt;br/&gt;startup, settings check, recovery"]
+    entry["app/__main__.py&lt;br/&gt;settings check, starts the server"]
+    main["app/main.py&lt;br/&gt;app setup, database, recovery"]
     web["app/web/&lt;br/&gt;routes and templates"]
     status["app/status.py&lt;br/&gt;status table and claims"]
     jobs["app/jobs.py&lt;br/&gt;background runner"]
@@ -710,9 +717,10 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     clients["app/clients/&lt;br/&gt;reference API and Claude"]
     db["app/db.py and app/models.py&lt;br/&gt;tables and sessions"]
 
+    entry --&gt;|"builds"| main
     main --&gt;|"mounts"| web
     web --&gt;|"asks for moves"| status
-    web --&gt;|"hands work to"| jobs
+    web --&gt;|"starts work through"| jobs
     jobs --&gt;|"runs"| steps
     steps --&gt;|"calls"| clients
     steps --&gt;|"uses"| checks
@@ -720,47 +728,66 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     jobs --&gt;|"saves through"| db</pre>
 <p>This shows where each part lives and which code uses which.</p>
 <ul>
-<li><code>app/__main__.py</code> (not drawn) is the container's entry point: it reads the settings, exits with code 1</li>
+<li><code>app/__main__.py</code> is the container's entry point (<code>python -m app</code>): it loads the settings, exits</li>
 </ul>
-<p>and a plain message without <code>ANTHROPIC_API_KEY</code> (R3), and starts the server.</p>
+<p>with code 1 and a plain message when <code>ANTHROPIC_API_KEY</code> is missing (R3), and starts the server on port 8080 at the address in the <code>HOST</code> setting. The missing-key check is here, at startup, not in <code>app/main.py</code>, so tests can build the app with stand-in clients and no key.</p>
 <ul>
-<li><code>app/main.py</code> creates the FastAPI app, sets up the database, runs restart recovery (R31), and builds</li>
+<li><code>app/main.py</code> creates the FastAPI app, sets up the database (adding any column an older database</li>
 </ul>
-<p>the real reference API client from <code>REFERENCE_API_URL</code> unless a test passes a stand-in.</p>
+<p>lacks), runs restart recovery (R31), builds the real Claude and reference API clients (the reference one from <code>REFERENCE_API_URL</code>) unless a test passes stand-ins, adds the host guards and the upload size guard, and shows the HTML not-found page for any 404 outside the JSON download.</p>
 <ul>
-<li><code>app/config.py</code> (not drawn) reads the settings: the three in <code>.env</code>, plus <code>DATA_DIR</code> (default</li>
+<li><code>app/config.py</code> (not drawn) reads the six settings, all listed in <code>.env.example</code>:</li>
 </ul>
-<p><code>/data</code>, where the database and uploads live) and <code>ALLOWED_HOSTS</code> (default <code>localhost</code> and <code>127.0.0.1</code>, the only host names served). The API key is held as a secret value that is hidden when the settings are printed.</p>
+<p><code>ANTHROPIC_API_KEY</code>; <code>ANTHROPIC_MODEL</code> (default <code>claude-opus-5-5</code>); <code>REFERENCE_API_URL</code>; <code>DATA_DIR</code> (where the database and uploads live); <code>HOST</code> (the address the server listens on, default <code>127.0.0.1</code>, this machine only); and <code>ALLOWED_HOSTS</code> (default <code>localhost</code> and <code>127.0.0.1</code>, the only host names served). The API key is held as a secret value that is hidden when the settings are printed. Under Docker Compose the container's own values for the reference API address, the data folder and the listening address are set by Compose (section 13).</p>
 <ul>
 <li><code>app/uploads.py</code> (not drawn) checks an upload and stores it under a generated name.</li>
+<li><code>app/web/upload_limit.py</code> (not drawn) is the upload size guard: it wraps the app and refuses an</li>
+</ul>
+<p>oversized upload while it arrives, before the form is parsed, with HTTP 413 and the <code>too_large.html</code> page (section 4.1).</p>
+<ul>
+<li><code>app/schemas.py</code> (not drawn) holds the JSON shapes Claude must answer in, for extraction and for</li>
+</ul>
+<p>each matching group (section 6).</p>
+<ul>
+<li><code>app/money.py</code> (not drawn) turns printed money and quantities into exact decimals, ignoring</li>
+</ul>
+<p>currency codes, symbols and thousands separators and reading <code>(50.00)</code> as a negative, and formats amounts back into text such as <code>$1,020.00</code>.</p>
+<ul>
+<li><code>app/logs.py</code> (not drawn) logs an unexpected error by its type and where it happened only, never</li>
+</ul>
+<p>its text, which could hold content read from an invoice (section 9).</p>
+<ul>
 <li><code>app/clock.py</code> (not drawn) gives the current time as ISO 8601 text.</li>
 <li><code>app/web/</code> holds the route handlers (<code>routes.py</code> for uploads, progress and the invoice page;</li>
 </ul>
 <p><code>confirm.py</code> for the confirmation screen and the gate; <code>review.py</code> for matching progress, the review screen, catalog search, overrides, undo and the on-screen time report; <code>finalize.py</code> for the finalize summary, finalizing and the JSON download), the Jinja2 templates, the static htmx file, and <code>cross_site.py</code>, which serves only <code>localhost</code> and <code>127.0.0.1</code> (blocking DNS-rebinding attacks) and refuses state-changing requests a browser marks as coming from another site, or whose Origin isn't the app's own address and port (HTTP 403).</p>
 <ul>
 <li><code>app/prompts/</code> holds the instructions sent to Claude, starting with <code>extraction.md</code>.</li>
-<li><code>app/status.py</code> holds the table of allowed moves and the claim function. It is the only place a</li>
+<li><code>app/status.py</code> holds the table of allowed moves, the claim function, the write lock used by</li>
 </ul>
-<p>status is written.</p>
+<p>overrides, undo, changing metadata, finalizing and saving matches, and the failure and restart-recovery code that also closes runs a failure cut short. It writes every status change except the first one, when the upload creates an invoice in the extracting status.</p>
 <ul>
-<li><code>app/jobs.py</code> runs claimed work in the background; <code>app/steps/line_matching.py</code> owns the thread</li>
+<li><code>app/jobs.py</code> is the background runner: route handlers call its start function after their claim</li>
 </ul>
-<p>pool of five.</p>
+<p>succeeds, and it runs the step inside the catch-all of section 9; <code>app/steps/line_matching.py</code> owns the thread pool of five.</p>
 <ul>
 <li><code>app/steps/extraction.py</code>, <code>app/steps/metadata.py</code> and <code>app/steps/line_matching.py</code> are the three</li>
 </ul>
 <p>separate pipeline steps the brief asks for.</p>
 <ul>
-<li><code>app/checks.py</code> holds price flags and the arithmetic checks.</li>
+<li><code>app/checks.py</code> holds price flags and the arithmetic checks, and counts which arithmetic warnings</li>
+</ul>
+<p>are real mismatches rather than notes that a check was skipped.</p>
+<ul>
 <li><code>app/export.py</code> builds the JSON download.</li>
 <li><code>app/clients/reference_api.py</code> and <code>app/clients/claude.py</code> are the only code that talks to the</li>
 </ul>
-<p>outside.</p>
+<p>outside. The Claude client also holds the table of each model's shortest cacheable prompt start (section 4.3).</p>
 <ul>
 <li><code>app/db.py</code> and <code>app/models.py</code> hold the SQLAlchemy tables from section 3.</li>
 <li><code>tests/</code> holds the tests: stand-ins for both clients in <code>tests/fakes.py</code>, reference API answers</li>
 </ul>
-<p>recorded from the running API in <code>tests/fixtures/reference/</code>, saved Claude answers in <code>tests/fixtures/claude/</code>, the expected results for the four samples in <code>tests/fixtures/expected_results.json</code>, and the live tests marked <code>live</code>.</p>
+<p>recorded from the running API in <code>tests/fixtures/reference/</code>, saved Claude extraction answers in <code>tests/fixtures/claude/</code> (the stand-in matching answers are built inside the tests), the expected results for the four samples in <code>tests/fixtures/expected_results.json</code>, the live tests in <code>tests/live/</code> marked <code>live</code>, and the browser tests in <code>tests/browser/</code> marked <code>browser</code>, which use Playwright to drive a real Chromium browser through the running app and the real Claude. Both marked groups cost money and need the whole stack running, so the default test run leaves them out; each runs only when asked for (<code>pytest -m live</code>, <code>pytest -m browser</code>).</p>
 <ul>
 <li><code>scripts/make_test_files.py</code> makes the PNG and photo-like test images (R57), using <code>pypdfium2</code> to</li>
 </ul>
@@ -789,13 +816,16 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li>The new <code>app</code> service is added to the existing <code>docker-compose.yml</code>. It depends on the <code>api</code></li>
 </ul>
-<p>service, reads <code>.env</code>, publishes port 8080 on <code>127.0.0.1</code> only (not on other network interfaces), and mounts the <code>app_data</code> volume at <code>/data</code>.</p>
+<p>service, reads <code>.env</code> if there is one (the file is optional, so Compose still starts without it and the app itself then stops with the missing-key message), publishes port 8080 on <code>127.0.0.1</code> only (not on other network interfaces), and mounts the <code>app_data</code> volume at <code>/data</code>.</p>
 <ul>
-<li>Inside Compose the app reaches the reference API at <code>http://api:8000</code> (the address setting, R2).</li>
-<li>The app image uses Python 3.13 slim, like the reference API's image.</li>
-<li>The reference API and its database are unchanged apart from the earlier one-line fix to keep</li>
+<li>Compose sets three settings that belong to the container, overriding anything in <code>.env</code>:</li>
 </ul>
-<p>SQLAlchemy on the 2.0 series.</p>
+<p><code>REFERENCE_API_URL=http://api:8000</code> (the address setting, R2), <code>DATA_DIR=/data</code> (the volume) and <code>HOST=0.0.0.0</code>, so the server inside the container accepts the published port. The <code>.env</code> values for those three are for running the app directly on the laptop (<code>python -m app</code>).</p>
+<ul>
+<li>The app image uses Python 3.13 slim, like the reference API's image.</li>
+<li>The reference API and its database are unchanged apart from two things: the earlier one-line fix</li>
+</ul>
+<p>to keep SQLAlchemy on the 2.0 series, and their published ports (8000 for the API, 5433 for Postgres) now being bound to <code>127.0.0.1</code> only, like the app's.</p>
 <h2>14. Libraries</h2>
 <table>
 <thead><tr><th>Library</th><th>Used for</th></tr></thead>
@@ -810,6 +840,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td><code>rapidfuzz</code></td><td>Fuzzy name comparison</td></tr>
 <tr><td><code>pypdf</code></td><td>Counting PDF pages for the upload limit</td></tr>
 <tr><td><code>pytest</code></td><td>Tests</td></tr>
+<tr><td><code>pytest-playwright</code></td><td>Driving a real browser in the browser tests (test-only, in <code>requirements-dev.txt</code>)</td></tr>
 <tr><td><code>pypdfium2</code>, <code>Pillow</code></td><td>Making test images (test-only)</td></tr>
 <tr><td><code>reportlab</code></td><td>Making the hostile-text test invoice (test-only)</td></tr>
 </tbody>
@@ -864,9 +895,28 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><strong>SQLAlchemy:</strong> a Python library for working with databases through Python classes.</li>
 <li><strong>Docker Compose:</strong> a tool that starts several containers together from one file.</li>
 <li><strong>Docker volume:</strong> storage that survives a container being recreated.</li>
-<li><strong>HTTP 409, 413, 415, 422:</strong> the web's codes for "conflicts with the current state", "too large",</li>
+<li><strong>HTTP 400, 403, 404, 409, 413, 415, 422, 503:</strong> the web's codes for "bad request" (here, an</li>
 </ul>
-<p>"unsupported file type" and "values are invalid".</p>
+<p>unknown host name), "forbidden", "not found", "conflicts with the current state", "too large", "unsupported file type", "values are invalid" and "a service it depends on is unavailable".</p>
+<ul>
+<li><strong>ASGI middleware:</strong> a layer wrapped around the whole web app that sees each request before any</li>
+</ul>
+<p>route does; the upload size guard is one.</p>
+<ul>
+<li><strong>Upload size guard:</strong> the middleware that refuses an oversized upload while it is still arriving.</li>
+<li><strong>Write lock:</strong> SQLite's hold on the database for one writer at a time; the status guard takes it</li>
+</ul>
+<p>before checking the status, so the status can't change between the check and the write.</p>
+<ul>
+<li><strong>Run end time:</strong> when a reading or matching run finished, recorded whatever its outcome.</li>
+<li><strong>Note (arithmetic):</strong> a message that an arithmetic check was skipped, such as no printed total;</li>
+</ul>
+<p>shown with the warnings but not counted as one.</p>
+<ul>
+<li><strong>Playwright:</strong> a tool that drives a real web browser from test code.</li>
+<li><strong>Pytest marker:</strong> a label on a test (here <code>live</code> and <code>browser</code>) that lets a test run include or</li>
+</ul>
+<p>leave out that group.</p>
 <ul>
 <li><strong>ISO 8601:</strong> the standard way of writing dates and times as text, such as <code>2026-10-21T14:03:12Z</code>.</li>
 </ul>

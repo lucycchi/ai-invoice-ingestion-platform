@@ -105,6 +105,7 @@ class Run(Base):
     started_at: Mapped[str] = mapped_column(String(32))
     stored_at: Mapped[str | None] = mapped_column(String(32))
     shown_at: Mapped[str | None] = mapped_column(String(32))
+    ended_at: Mapped[str | None] = mapped_column(String(32))  # when the run finished, whatever its outcome
     claude_requests: Mapped[int] = mapped_column(default=0)
     input_tokens: Mapped[int] = mapped_column(default=0)
     output_tokens: Mapped[int] = mapped_column(default=0)

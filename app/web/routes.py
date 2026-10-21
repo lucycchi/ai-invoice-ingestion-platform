@@ -117,7 +117,9 @@ def retry(request: Request, invoice_id: int, background_tasks: BackgroundTasks):
 
     with _sessions(request)() as s:
         invoice = s.get(Invoice, invoice_id)
-        failed = Status(invoice.status) if invoice else None
+        if invoice is None:
+            raise HTTPException(404, "There's no invoice with that number.")
+        failed = Status(invoice.status)
         try:
             if failed == Status.MATCHING_FAILED:
                 claim(s, invoice_id, expected={Status.MATCHING_FAILED}, new=Status.MATCHING)

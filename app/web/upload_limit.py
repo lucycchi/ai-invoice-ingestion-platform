@@ -7,8 +7,12 @@ from app.uploads import MAX_FILE_BYTES
 # Room for the form's own fields and boundaries around a file of the largest allowed size; the
 # upload handler still checks the file itself against the exact limit.
 UPLOAD_BODY_LIMIT = MAX_FILE_BYTES + 64 * 1024
-TOO_LARGE = ('<!doctype html><title>File too large</title><p>The file is too large: uploads can be at '
-             'most 10 MB.</p><p><a href="/">Back to all invoices</a></p>')
+
+
+def _too_large_page() -> str:
+    from app.web.routes import templates  # the app's own layout, loaded when first needed
+
+    return templates.get_template("too_large.html").render()
 
 
 class _TooLarge(Exception):
@@ -26,7 +30,7 @@ class UploadSizeLimit:
             return await self.app(scope, receive, send)
         declared = dict(scope["headers"]).get(b"content-length", b"")
         if declared.isdigit() and int(declared) > self.limit:
-            return await HTMLResponse(TOO_LARGE, status_code=413)(scope, receive, send)
+            return await HTMLResponse(_too_large_page(), status_code=413)(scope, receive, send)
 
         received = 0
         over = False
@@ -50,4 +54,4 @@ class UploadSizeLimit:
             if not over:
                 raise
         if over:
-            await HTMLResponse(TOO_LARGE, status_code=413)(scope, receive, send)
+            await HTMLResponse(_too_large_page(), status_code=413)(scope, receive, send)

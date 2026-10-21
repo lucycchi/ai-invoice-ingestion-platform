@@ -19,7 +19,7 @@ def run_guarded(session_factory, invoice_id: int, job) -> None:
     except Exception as err:
         # Only the error's type, in the log and on the page: its text could hold invoice content.
         log_error(log, "Unexpected error in background work", invoice_id, err)
-        _fail(session_factory, invoice_id, f"Unexpected error ({type(err).__name__}); details are in the app log")
+        _fail(session_factory, invoice_id, f"Unexpected error ({type(err).__name__}); the app log records where it happened")
 
 
 def _fail(session_factory, invoice_id: int, reason: str) -> None:

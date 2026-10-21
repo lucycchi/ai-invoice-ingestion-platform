@@ -34,8 +34,11 @@ services:
     env_file:
       - path: .env
         required: false
+    # These belong to the container, so they are set here and override anything in .env.
     environment:
-      REFERENCE_API_URL: ${REFERENCE_API_URL:-http://api:8000}
+      REFERENCE_API_URL: http://api:8000
+      DATA_DIR: /data
+      HOST: 0.0.0.0
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

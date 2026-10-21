@@ -10,7 +10,8 @@ from enum import StrEnum
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models import Invoice
+from app.clock import now_iso
+from app.models import Invoice, Run
 
 
 class Status(StrEnum):
@@ -98,6 +99,13 @@ def fail(session: Session, invoice_id: int, reason: str) -> None:
             .where(Invoice.id == invoice_id, Invoice.status == running.value)
             .values(status=failed.value, status_reason=reason)
         )
+    _close_open_runs(session, Run.invoice_id == invoice_id, reason)
+
+
+def _close_open_runs(session: Session, which, reason: str) -> None:
+    """Runs a failure cut short get an end time and the failure as their outcome."""
+    session.execute(update(Run).where(which, Run.outcome.is_(None))
+                    .values(ended_at=now_iso(), outcome=f"failed: {reason}"))
 
 
 def recover_interrupted(session: Session) -> int:
@@ -110,4 +118,5 @@ def recover_interrupted(session: Session) -> int:
             .values(status=failed.value, status_reason=RESTART_REASON)
         )
         moved += result.rowcount
+    _close_open_runs(session, Run.id.is_not(None), RESTART_REASON)
     return moved

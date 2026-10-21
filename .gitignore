@@ -31,6 +31,7 @@ Thumbs.db
 
 # Docker / local data (if any)
 postgres_data/
+data/
 
 # Test / coverage
 .coverage

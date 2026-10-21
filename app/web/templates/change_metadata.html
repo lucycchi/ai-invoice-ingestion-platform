@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Change the sponsor, study or site?</h1>
-{% if matches %}<div class="note">This will clear {{ matches }} matches and {{ overrides }} overrides. Matching runs again after you confirm the new choice.</div>{% endif %}
+{% if matches %}<div class="note">This will clear {{ matches }} match{{ 'es' if matches != 1 else '' }} and {{ overrides }} override{{ 's' if overrides != 1 else '' }}. Matching runs again after you confirm the new choice.</div>{% endif %}
 <form action="/invoices/{{ invoice_id }}/change-metadata" method="post">
   <button type="submit">Change metadata</button>
   <a href="/invoices/{{ invoice_id }}">Cancel</a>

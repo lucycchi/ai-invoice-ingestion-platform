@@ -129,7 +129,7 @@ def _record_run(s, invoice_id: int, started_at: str, usage, outcome: str) -> Non
     if run is None:
         run = Run(invoice_id=invoice_id, step="extraction", started_at=started_at)
         s.add(run)
-    run.stored_at = now_iso()
+    run.stored_at = run.ended_at = now_iso()
     run.claude_requests = usage.requests
     run.input_tokens = usage.input_tokens
     run.output_tokens = usage.output_tokens

@@ -42,5 +42,13 @@ def make_engine(db_path: Path) -> Engine:
     return engine
 
 
+def add_missing_columns(engine: Engine) -> None:
+    """Bring a database made by an earlier version up to date (create_all never alters a table)."""
+    with engine.begin() as connection:
+        columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(runs)")}
+        if "ended_at" not in columns:
+            connection.exec_driver_sql("ALTER TABLE runs ADD COLUMN ended_at VARCHAR(32)")
+
+
 def session_factory(engine: Engine) -> sessionmaker:
     return sessionmaker(engine, expire_on_commit=False)

@@ -14,7 +14,7 @@ def main() -> None:
     except MissingSetting as err:
         print(err, file=sys.stderr)
         sys.exit(1)
-    uvicorn.run(create_app(settings), host="0.0.0.0", port=8080)
+    uvicorn.run(create_app(settings), host=settings.host, port=8080)
 
 
 if __name__ == "__main__":

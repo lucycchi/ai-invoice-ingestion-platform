@@ -116,7 +116,7 @@ def test_unexpected_error_reason(settings, caplog):
     with _app(settings, FakeClaude(extraction=RuntimeError("secret invoice text"))) as client:
         invoice = _get(client, Invoice, _upload(client))
     assert invoice.status == "extraction_failed"
-    assert invoice.status_reason == "Unexpected error (RuntimeError); details are in the app log"
+    assert invoice.status_reason == "Unexpected error (RuntimeError); the app log records where it happened"
     # The log gets the error's type and where it happened, never its text.
     assert "RuntimeError" in caplog.text and "run_extraction" in caplog.text
     assert "secret invoice text" not in caplog.text

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("/data")
     # Only these host names are served, which blocks DNS-rebinding attacks from other websites.
     allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
+    # The address the server listens on: this machine only, unless the container sets 0.0.0.0.
+    host: str = "127.0.0.1"
 
 
 def get_settings(env_file: str | None = ".env") -> Settings:

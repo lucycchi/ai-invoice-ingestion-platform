@@ -141,7 +141,7 @@ def run_matching(app, invoice_id: int) -> None:
         except Exception as err:  # e.g. a database lock: recorded so the run still gets its counts
             log_error(log, "Unexpected error matching a group", invoice_id, err)
             with tally.lock:
-                tally.errors.append(f"Unexpected error ({type(err).__name__}); details are in the app log")
+                tally.errors.append(f"Unexpected error ({type(err).__name__}); the app log records where it happened")
             return False
 
     cache_applied = False
@@ -205,6 +205,7 @@ def _finish(sessions, invoice_id: int, tally: _Tally, cache_applied: bool, failu
         if run is not None:
             # A failed run has no "last result stored" moment, so its stored time stays empty.
             run.stored_at = (tally.last_saved or now_iso()) if failure is None else None
+            run.ended_at = now_iso()
             run.claude_requests = tally.usage.requests
             run.input_tokens = tally.usage.input_tokens
             run.output_tokens = tally.usage.output_tokens

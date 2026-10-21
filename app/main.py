@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException
 from app.clients.claude import ClaudeClient
 from app.clients.reference_api import ReferenceClient
 from app.config import Settings
-from app.db import make_engine, session_factory
+from app.db import add_missing_columns, make_engine, session_factory
 from app.models import Base
 from app.status import recover_interrupted
 from app.web.confirm import router as confirm_router
@@ -32,6 +32,7 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
         (settings.data_dir / "uploads").mkdir(exist_ok=True)
         engine = make_engine(settings.data_dir / "app.db")
         Base.metadata.create_all(engine)
+        add_missing_columns(engine)
         app.state.settings = settings
         app.state.sessions = session_factory(engine)
         with app.state.sessions() as session:

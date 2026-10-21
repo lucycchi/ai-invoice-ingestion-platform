@@ -28,7 +28,7 @@ def arithmetic_warnings(lines, printed_total: Decimal | None, printed_total_text
             continue
         quantity = Decimal(str(line.quantity))
         expected = (quantity * line.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if expected != line.amount:
+        if expected != _cents(line.amount):
             warnings.append(
                 f"Line {position}: {_quantity_text(quantity)} × {format_money(line.unit_price)} = "
                 f"{format_money(expected)}, but the invoice says {format_money(line.amount)}."
@@ -40,7 +40,7 @@ def arithmetic_warnings(lines, printed_total: Decimal | None, printed_total_text
         )
     elif printed_total is None:
         warnings.append(NO_TOTAL)
-    elif total != printed_total:
+    elif _cents(total) != _cents(printed_total):
         note = f" ({left_out} line{'s' if left_out != 1 else ''} left out)" if left_out else ""
         warnings.append(
             f"Total: the lines add up to {format_money(total)}, but the invoice says "
@@ -107,3 +107,11 @@ def refresh_flag(session, match) -> None:
     )
     flag = price_flag(line.unit_price, item.unit_price if item else None)
     match.price_flag = flag.to_json() if flag else None
+
+
+SKIPPED_ENDINGS = ("was not checked.", "because a number is missing.")
+
+
+def count_discrepancies(warnings: list[str]) -> int:
+    """The warnings that are real mismatches; a check that was skipped is stated, not counted."""
+    return sum(1 for w in warnings if not w.endswith(SKIPPED_ENDINGS))

@@ -22,6 +22,100 @@ repeat it.
 **Schedule:** five days, 2026-10-21 to 2026-10-25. Milestone 1 on day 1, milestone 2 on day 2,
 milestone 3 on days 3 and 4, milestone 4 on day 5.
 
+## As built
+
+This plan is the record of the planning stage and its body is left as it was written. The code differs
+from it in the places below; `docs/ARCHITECTURE.md` describes the code as it is now.
+
+**Settings, startup and Docker**
+
+- The plan says settings come only from `.env`, with three of them, and that the key is a plain text
+  field. The `Settings` class in `app/config.py` has six settings: `ANTHROPIC_API_KEY`,
+  `ANTHROPIC_MODEL`, `REFERENCE_API_URL`, `DATA_DIR`, `HOST` (the address the server listens on,
+  default `127.0.0.1`) and `ALLOWED_HOSTS` (the host names the app answers to). All six are listed in
+  `.env.example`, and the key is held as a secret value (Pydantic's `SecretStr`) that is hidden when
+  the settings are printed.
+- The plan has `app/main.py` call `get_settings()` and exit when the key is missing. That check runs in
+  the entry point, `app/__main__.py`, which then starts the server at the `HOST` address;
+  `app/main.py` only builds the app.
+- The plan's Compose service uses `env_file: .env` and port `8080:8080`. In `docker-compose.yml` the
+  `.env` file is optional (`required: false`); the service's `environment:` block sets
+  `REFERENCE_API_URL=http://api:8000`, `DATA_DIR=/data` and `HOST=0.0.0.0` for the container,
+  overriding `.env`; and every published port is bound to `127.0.0.1` only: the app's 8080 and also
+  the reference API's 8000 and its database's 5433.
+- The plan's `pytest.ini` sets `addopts = -m "not live"`. It now selects `-m "not live and not
+  browser"` and declares a second marker, `browser`, for the Playwright browser tests in
+  `tests/browser/` (with `pytest-playwright` added to `requirements-dev.txt`).
+
+**Status guard and background work**
+
+- The plan has `locked_invoice` run `BEGIN IMMEDIATE`. It instead opens with a conditional update that
+  changes nothing, which takes SQLite's write lock and checks the status in one statement (the status
+  guard's write lock, D14), in `app/status.py`.
+- The plan has `run_guarded` log the full error and give the reason "details are in the app log". In
+  `app/jobs.py` it logs only the error's type and where it happened (file, line, function and code
+  line), through the new `app/logs.py`, never the error's text, and the reason reads "Unexpected error
+  (<error type>); the app log records where it happened".
+- The plan gives `app.jobs.start(background_tasks, job, ...)`. The built signature is
+  `start(background_tasks, app, invoice_id, step)`, which queues `step(app, invoice_id)` inside the
+  catch-all. Route handlers call it themselves after their claim: the upload and Retry handlers in
+  `app/web/routes.py` and the Confirm handler in `app/web/confirm.py`.
+- The plan gives `run_extraction(session_factory, invoice_id, claude, reference)` and
+  `run_matching(session_factory, invoice_id, claude, reference)`. Both take `(app, invoice_id)` and
+  read the sessions, clients and settings from the app's state (`app/steps/extraction.py`,
+  `app/steps/line_matching.py`).
+- The plan's `start_matching(background_tasks, invoice_id)` takes `(background_tasks, app,
+  invoice_id)` and lives in `app/web/confirm.py`, not `app/web/routes.py`.
+- The runs table has an `ended_at` column the plan does not list, set for every run whatever its
+  outcome (`app/models.py`). `app/db.py` (`add_missing_columns`) adds it to an older database at
+  startup, and the status guard's `fail` and `recover_interrupted` close any run a failure or a
+  restart cut short.
+
+**Claude and matching**
+
+- The plan has `MIN_CACHEABLE_TOKENS` as one constant for the configured model. In
+  `app/clients/claude.py` it is a table of models and their shortest cacheable prompt start, read
+  through `min_cacheable_tokens(model)`; a model missing from the table gets the largest value, 4096.
+- The plan's matching prompt uses the spec's cold-chain shipping line as its tie-break example. That
+  line is in a sample invoice, so `app/prompts/matching_instructions.md` uses neutral examples found
+  in no sample, such as a frozen-sample courier line, with the same rule (the neutral prompt
+  examples, D13).
+- `ClaudeFailed` also carries the usage counts of the failed tries, so a failed run still records its
+  requests and tokens.
+- The plan creates saved matching answers in `tests/fixtures/claude/match_*.json`. These files don't
+  exist: `tests/fixtures/claude/` holds only the four saved extraction answers, and the stand-in
+  matching answers are built inside the tests.
+
+**Uploads, checks and pages**
+
+- The plan gives `app.uploads.store(data, data_dir)`. It is `store(data, media_type, data_dir)`, since
+  the stored name's extension comes from the detected file type.
+- An upload size guard not in the plan, `app/web/upload_limit.py`, is an ASGI middleware added in
+  `app/main.py`. It refuses an oversized upload while it arrives, before the form is parsed, with HTTP
+  413 and the page `app/web/templates/too_large.html`.
+- `app/web/cross_site.py`, not in the plan, serves only the host names in `ALLOWED_HOSTS` (HTTP 400
+  otherwise) and refuses a cross-site form post (HTTP 403).
+- Any 404 on a page shows an HTML not-found page (`app/web/templates/not_found.html`, set up in
+  `app/main.py`); only `export.json` keeps answering in JSON. Retry, the change-metadata warning page
+  and the finalize summary page answer 404 for an unknown invoice, and the studies picker answers 503
+  when the reference API is down.
+- Skipped arithmetic checks (no printed total, an unreadable total, or a line with a missing number)
+  are notes, not counted as arithmetic warnings in `review_summary` or the finalize summary
+  (`count_discrepancies` in `app/checks.py`), and amounts and totals are compared to the cent.
+- The plan puts the confirmation, review and finalize routes in `app/web/routes.py`. They live in
+  `app/web/confirm.py`, `app/web/review.py` and `app/web/finalize.py`; `routes.py` keeps the upload
+  screen, uploads, Retry, progress and the invoice page.
+- The plan creates templates `confirm.html` and `review.html`. The built templates are the partials
+  `_confirm.html` and `_review.html`, drawn inside `invoice.html`: the first while the invoice awaits
+  confirmation, the second once matching has ended (in review, matching failed or finalized).
+
+**Tests**
+
+- The plan's `test_confirm_unknown_site` became `test_confirm_unknown_choice` in
+  `tests/test_confirm.py`, covering an unknown sponsor, study or site.
+- The plan's `test_override_no_match` became `test_override_no_match_clears_flag` in
+  `tests/test_review.py`.
+
 ## Global Constraints
 
 Every task's requirements include these.
@@ -928,3 +1022,13 @@ Every requirement is named by at least one task:
   as text.
 - **Gaussian blur:** a soft blur used to make a test image look like a slightly out-of-focus photo.
 - **Dots per inch:** how finely a PDF page is drawn into an image.
+- **No-change update:** a database update that sets a column to its own value; it changes nothing but
+  takes SQLite's write lock and, with a condition on the status, checks the status in the same step.
+- **Secret value (`SecretStr`):** a Pydantic type that holds a setting such as the API key and hides
+  it when the settings are printed.
+- **ASGI middleware:** a layer wrapped around the whole web app that sees each request before any
+  route does; the upload size guard is one.
+- **Browser test:** a test that drives a real web browser (here Chromium, through Playwright) through
+  the running app; run only with `pytest -m browser`.
+- **Partial (template):** a piece of a page, named with a leading underscore, that a full page
+  includes or that htmx redraws on its own.

@@ -31,12 +31,26 @@ provided database's password is in the repository.
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | Yes | | Your Anthropic key. The app refuses to start without it and says why. |
 | `ANTHROPIC_MODEL` | No | `claude-opus-5-5` | The Claude model used for reading and matching. |
-| `REFERENCE_API_URL` | No | `http://api:8000` | Where the reference API is. Inside Docker Compose it is the service name; if you run the app directly on your machine, use `http://localhost:8000`. |
+| `REFERENCE_API_URL` | No | `http://api:8000` | Where the reference API is. |
+| `DATA_DIR` | No | `/data` | The folder for the app's database and uploaded files. |
+| `HOST` | No | `127.0.0.1` | The address the server listens on. |
+| `ALLOWED_HOSTS` | No | `["localhost","127.0.0.1"]` | The only host names the app answers to, which blocks attacks from other websites. |
 
-Two more settings, also listed in `.env.example`, exist for special cases and rarely need changing: `DATA_DIR` (default `/data`, where
-the app keeps its database and uploaded files inside its container) and `ALLOWED_HOSTS` (default
-`["localhost","127.0.0.1"]`, the only host names the app answers to, which blocks attacks from other
-websites).
+Under Docker Compose, only the first two come from `.env`. `docker-compose.yml` sets the next three
+for the container (`http://api:8000`, the `/data` volume and `0.0.0.0`) and overrides anything in
+`.env`, so a value meant for running the app directly can't break the container.
+
+### Running it without Docker
+
+The app can also run directly on your machine, with Python 3.13, while the reference API runs in
+Docker. The values in `.env.example` are already the ones for this: the reference API at
+`http://localhost:8000`, data in `./data` and the server on 127.0.0.1 only.
+
+```bash
+docker compose up -d api      # the reference API and its database
+python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m app       # serves http://localhost:8080
+```
 
 The app keeps its own data (an SQLite file and the uploaded files) on a Docker volume, so it survives
 restarts. To start over with empty data, run `docker compose down -v`, which removes this project's
@@ -78,7 +92,7 @@ What to expect from each sample:
 
 ```bash
 python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # Python 3.13; or use uv
-.venv/bin/pytest              # 285 tests; free and offline: Claude and the reference API are stand-ins
+.venv/bin/pytest              # 298 tests; free and offline: Claude and the reference API are stand-ins
 .venv/bin/pytest -m live -s   # the live tests: real Claude, the running reference API (start it first)
 .venv/bin/pytest -m browser  # browser tests: Playwright drives Chromium through the running app (docker compose up first)
 ```
@@ -110,20 +124,53 @@ not taken from the samples):
 
 ## Timings
 
-Each sample was run through all four stages in a browser twice, the second time within five minutes
-(Claude's default cache lifetime). *On-screen seconds* run from the moment the server receives
-*Confirm* until the review page has shown every match; this is the headline figure. *Stored seconds*
-end when the last match is saved. Reading has no on-screen figure; its time runs from the upload.
+Each sample was run through all four stages in a browser twice, on a clean database, the second time
+within five minutes (Claude's default cache lifetime). The first round was **cold**: nothing had used
+these catalogs for well over five minutes, so no cache was warm when it started. *On-screen seconds*
+run from the moment the server receives *Confirm* until the review page has shown every match; this
+is the headline figure. *Stored seconds* end when the last match is saved. Reading has no on-screen
+figure; its time runs from the upload. Every run also records when it ended, whether it succeeded or
+failed.
 
-**The target is under 30 seconds for matching the large invoice. Measured: 9.5 seconds (first run)
-and 9.4 seconds (repeat).** The slowest matching of all was 10.3 seconds; the slowest reading, 11.5 seconds.
-
-The *Claude requests* column was measured before a later fix and leaves out the one token-counting
-request that each matching run makes before it decides whether to warm the cache. Matching runs now
-count it, so each would show one more.
+**The target is under 30 seconds for matching the large invoice. Measured (2026-10-21): 8.4 seconds
+(first, cold) and 7.3 seconds (repeat).** The slowest matching of all was 8.4 seconds; the slowest
+reading, 12.4 seconds.
 
 | Invoice file | Step | Run | On-screen seconds | Stored seconds | Claude requests | Input tokens | Output tokens | Cache-read tokens | First group warmed the cache |
 |---|---|---|---|---|---|---|---|---|---|
+| simple-invoice.pdf | extraction | first | — | 4.6 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | first | 4.3 | 3.7 | 2 | 286 | 268 | 0 | no |
+| medium-invoice.pdf | extraction | first | — | 5.8 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | first | 8.3 | 7.4 | 3 | 624 | 635 | 4661 | yes |
+| large-invoice.pdf | extraction | first | — | 12.4 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 8.4 | 7.8 | 6 | 1550 | 1604 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 7.3 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | 8.3 | 7.8 | 3 | 404 | 411 | 1581 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 4.1 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 4.2 | 3.6 | 2 | 286 | 281 | 1455 | no |
+| medium-invoice.pdf | extraction | repeat | — | 6.1 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 6.3 | 6.1 | 3 | 624 | 622 | 9322 | yes |
+| large-invoice.pdf | extraction | repeat | — | 11.7 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 7.3 | 7.1 | 6 | 1550 | 1591 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | repeat | — | 4.5 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | repeat | 8.3 | 7.2 | 3 | 404 | 420 | 3162 | yes |
+
+*Claude requests* counts every request, including the one that counts the shared prompt's tokens
+before each matching run decides whether to warm the cache. *First group warmed the cache* means the
+first group of lines was sent alone to write Claude's prompt cache before the others; a one-group
+invoice (the simple one) has nothing to warm. The *cache-read tokens* column shows whether the cache
+was actually read. On the cold first round, the large invoice's 23,305 cache-read tokens come from its
+own first group warming the cache for the other four groups. Cold and warm runs take about the same
+time. Make your own table with | Invoice file | Step | Run | On-screen seconds | Stored seconds | Claude requests | Input tokens | Output tokens | Cache-read tokens | First group warmed the cache |
+|---|---|---|---|---|---|---|---|---|---|
+| simple-invoice.pdf | extraction | first | — | 9669.5 | 1 | 3869 | 412 | 0 | no |
+| large-invoice.pdf | extraction | first | — | 171.0 | 3 | 0 | 0 | 0 | no |
+| large-invoice.pdf | extraction | first | — | 14.1 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | — | 9.7 | 5 | 1550 | 1620 | 18632 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 5.2 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | — | 8.7 | 2 | 404 | 423 | 1578 | yes |
+| large-invoice.pdf | extraction | first | — | 10.5 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 9.4 | 8.4 | 5 | 1550 | 1639 | 23290 | yes |
 | simple-invoice.pdf | extraction | first | — | 4.2 | 1 | 3869 | 412 | 0 | no |
 | simple-invoice.pdf | matching | first | 3.2 | 3.0 | 1 | 286 | 286 | 1452 | no |
 | medium-invoice.pdf | extraction | first | — | 5.6 | 1 | 3997 | 666 | 0 | no |
@@ -138,17 +185,87 @@ count it, so each would show one more.
 | medium-invoice.pdf | matching | repeat | 8.4 | 7.9 | 2 | 624 | 691 | 9316 | yes |
 | large-invoice.pdf | extraction | repeat | — | 11.5 | 1 | 5933 | 1373 | 0 | no |
 | large-invoice.pdf | matching | repeat | 9.4 | 8.7 | 5 | 1550 | 1600 | 23290 | yes |
+| large-invoice.pdf | matching | repeat | 11.3 | 10.6 | 5 | 1550 | 1596 | 18632 | yes |
 | mismatched-metadata-invoice.pdf | extraction | repeat | — | 4.1 | 1 | 3913 | 498 | 0 | no |
 | mismatched-metadata-invoice.pdf | matching | repeat | 7.1 | 4.7 | 2 | 404 | 419 | 3156 | yes |
-
-*First group warmed the cache* means the first group of lines was sent alone to write Claude's prompt
-cache before the others; a one-group invoice (the simple one) has nothing to warm. The *cache-read
-tokens* column shows whether the cache was actually read, and it was on every matching run. Because the live tests had just used the same catalogs, even the "first"
-runs here read from the cache. So one **cold** run of the large invoice was measured separately, more
-than five minutes after any other use: reading 11.2 seconds, matching **9.4 seconds on screen** (9.3
-stored), with 18,632 cache-read tokens coming from its own first group warming the cache for the other
-four. Cold and warm runs take about the same time. Make your own table with
-`docker compose exec app python -m app.report_timings`.
+| large-invoice.pdf | extraction | first | — | 11.2 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 9.4 | 9.3 | 5 | 1550 | 1630 | 18632 | yes |
+| simple-invoice.pdf | extraction | first | — | 4.4 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | extraction | first | — | 6.2 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | first | 4.2 | 3.1 | 1 | 286 | 272 | 0 | no |
+| medium-invoice.pdf | extraction | first | — | 5.3 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | first | 7.3 | 6.7 | 2 | 624 | 654 | 4658 | yes |
+| large-invoice.pdf | extraction | first | — | 12.0 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 8.4 | 8.0 | 5 | 1550 | 1617 | 23290 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 4.3 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | 5.2 | 4.7 | 2 | 404 | 432 | 1578 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 3.9 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 7.1 | 6.1 | 1 | 286 | 272 | 1452 | no |
+| medium-invoice.pdf | extraction | repeat | — | 6.0 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 14.7 | 13.5 | 2 | 624 | 680 | 9316 | yes |
+| large-invoice.pdf | extraction | repeat | — | 12.1 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 9.4 | 8.7 | 5 | 1550 | 1613 | 23290 | yes |
+| medium-invoice.pdf | extraction | repeat | — | 5.3 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 7.3 | 6.3 | 2 | 624 | 645 | 9316 | yes |
+| simple-invoice.pdf | extraction | first | — | 3.6 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | first | 4.2 | 3.3 | 2 | 286 | 282 | 1455 | no |
+| medium-invoice.pdf | extraction | first | — | 5.6 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | first | 8.2 | 7.8 | 3 | 624 | 636 | 9322 | yes |
+| large-invoice.pdf | extraction | first | — | 10.3 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 7.3 | 7.1 | 6 | 1550 | 1600 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 4.2 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | 8.1 | 7.3 | 3 | 404 | 420 | 3162 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 5.2 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 5.2 | 4.8 | 2 | 286 | 278 | 1455 | no |
+| medium-invoice.pdf | extraction | repeat | — | 5.7 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 8.1 | 7.9 | 3 | 624 | 684 | 9322 | yes |
+| large-invoice.pdf | extraction | repeat | — | 9.5 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 7.3 | 6.9 | 6 | 1550 | 1608 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 5.5 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | 6.3 | 5.9 | 3 | 404 | 415 | 1581 | yes |
+| simple-invoice.pdf | extraction | first | — | 4.2 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | first | 4.2 | 3.2 | 2 | 286 | 268 | 0 | no |
+| medium-invoice.pdf | extraction | first | — | 5.6 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | first | 7.3 | 6.6 | 3 | 624 | 625 | 4661 | yes |
+| large-invoice.pdf | extraction | first | — | 12.6 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 7.3 | 6.8 | 6 | 1550 | 1592 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | repeat | — | 4.2 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | repeat | 8.2 | 7.8 | 3 | 404 | 420 | 3162 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 4.0 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 5.2 | 4.5 | 2 | 286 | 273 | 1455 | no |
+| medium-invoice.pdf | extraction | repeat | — | 5.5 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 6.2 | 6.1 | 3 | 624 | 638 | 9322 | yes |
+| large-invoice.pdf | extraction | repeat | — | 13.4 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | extraction | repeat | — | 11.8 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 8.3 | 7.6 | 6 | 1550 | 1584 | 23305 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 4.0 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 4.2 | 3.3 | 2 | 286 | 273 | 1455 | no |
+| medium-invoice.pdf | extraction | repeat | — | 5.3 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 8.2 | 7.8 | 3 | 624 | 633 | 9322 | yes |
+| large-invoice.pdf | extraction | repeat | — | 9.5 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 7.3 | 7.1 | 6 | 1550 | 1573 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 4.3 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | 8.2 | 7.5 | 3 | 404 | 421 | 3162 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 3.4 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 4.2 | 3.6 | 2 | 286 | 278 | 1455 | no |
+| medium-invoice.pdf | extraction | repeat | — | 5.2 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 6.3 | 5.8 | 3 | 624 | 639 | 9322 | yes |
+| large-invoice.pdf | extraction | repeat | — | 12.9 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 7.3 | 7.0 | 6 | 1550 | 1618 | 23305 | yes |
+| simple-invoice.pdf | extraction | first | — | 4.0 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | first | 4.3 | 3.7 | 2 | 286 | 281 | 1455 | no |
+| medium-invoice.pdf | extraction | first | — | 6.4 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | first | 7.4 | 6.9 | 3 | 624 | 636 | 9322 | yes |
+| large-invoice.pdf | extraction | first | — | 11.1 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | first | 8.6 | 7.4 | 6 | 1550 | 1584 | 23305 | yes |
+| mismatched-metadata-invoice.pdf | extraction | first | — | 4.6 | 1 | 3913 | 498 | 0 | no |
+| mismatched-metadata-invoice.pdf | matching | first | 6.4 | 6.0 | 3 | 404 | 406 | 3162 | yes |
+| simple-invoice.pdf | extraction | repeat | — | 4.0 | 1 | 3869 | 412 | 0 | no |
+| simple-invoice.pdf | matching | repeat | 4.2 | 3.8 | 2 | 286 | 276 | 1455 | no |
+| medium-invoice.pdf | extraction | repeat | — | 5.5 | 1 | 3997 | 666 | 0 | no |
+| medium-invoice.pdf | matching | repeat | 7.5 | 6.4 | 3 | 624 | 638 | 9322 | yes |
+| large-invoice.pdf | extraction | repeat | — | 10.7 | 1 | 5933 | 1373 | 0 | no |
+| large-invoice.pdf | matching | repeat | 9.4 | 8.8 | 6 | 1550 | 1605 | 23305 | yes |.
 
 ## Write-up
 

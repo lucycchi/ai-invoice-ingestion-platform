@@ -255,5 +255,7 @@ def suggest(header: ExtractedHeader, data: ReferenceData) -> list[Suggestion]:
         if warning:
             site.confidence = lower_one_level(site.confidence)
             site.reasons.append(warning)
+            if site.confidence == "not_found":  # a not-found field starts empty, with the name kept in the reason
+                site.entity_id = site.entity_name = None
 
     return [sponsor, study, site]

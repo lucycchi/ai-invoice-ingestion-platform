@@ -6,6 +6,47 @@ Repo: lucycchi/ai-invoice-ingestion-platform (GitHub, public) and lucychi/ai-inv
 Status: APPROVED
 Mode: Builder
 
+## As built
+
+This design is the record of the ideas stage and its body is left as it was written. The built app
+differs from it in the places below; `docs/ARCHITECTURE.md` describes the code as it is now.
+
+- **An unusable AI answer.** The design says a line whose answer still can't be used after the resend
+  is recorded as "no match". Instead the line is left without a result and matching moves to matching
+  failed, with a reason such as "The AI's answer for 2 lines could not be used"; Retry then rematches
+  only the lines without a result (`app/steps/line_matching.py`). "No match" is kept for lines Claude
+  itself says have no catalog item.
+- **The headline latency.** The design names the time until the last result is stored as the logged
+  figure. The headline figure is the on-screen time: from when the server receives Confirm until the
+  review page reports that every result is on screen (`POST /invoices/{id}/shown` in
+  `app/web/review.py`). The stored time is still recorded beside it, and every run also records when
+  it ended, whatever its outcome. The README's Timings section reports both; matching the large
+  invoice measured 8.4 seconds on screen cold and 7.3 seconds on a repeat.
+- **Changing the metadata.** The design allows it from awaiting confirmation or in review. It is also
+  allowed from matching failed (`app/web/confirm.py`, and the table of allowed moves in
+  `app/status.py`). Changing it returns the invoice to awaiting confirmation; matching runs again only
+  after the next Confirm.
+- **The statuses.** There is no "Uploaded" status. The upload handler creates the invoice directly in
+  extracting (`app/web/routes.py`), so there are seven statuses in all: extracting, extraction failed,
+  awaiting confirmation, matching, matching failed, in review and finalized.
+- **Docker Compose and settings.** The design calls the app a second service beside the reference API
+  and says `.env.example` lists three settings. The app is the third of three Compose services (the
+  reference database, the reference API and the app), and `.env.example` lists six settings: the
+  three named plus `DATA_DIR`, `HOST` and `ALLOWED_HOSTS`. The `.env` file is optional to Compose, and
+  `docker-compose.yml` sets the container's own reference API address, data folder and listening
+  address, overriding `.env`. The app refuses to start without a key, from `app/__main__.py`.
+- **The reference API.** Beyond the one-line SQLAlchemy fix, `docker-compose.yml` also binds the
+  reference API's port 8000 and its database's port 5433 to `127.0.0.1` only, like the app's 8080.
+- **Arithmetic warnings.** A skipped check, such as an invoice that prints no total or a line with a
+  missing number, is shown as a note and is not counted as an arithmetic warning in the review and
+  finalize summaries (`app/checks.py`). Amounts and totals are compared to the cent.
+- **The finalize summary.** It also counts arithmetic warnings, so it reads like "3 lines with no
+  match, 1 price difference, 0 arithmetic warnings" (`app/web/finalize.py`).
+- **Tests.** Besides the stand-in tests and the real-Claude tests marked `live`, a third set marked
+  `browser` drives a real browser through the running app with Playwright (`tests/browser/`). The
+  plain `pytest` command leaves both costly sets out.
+- **Next steps.** All seven next steps listed near the end of this document have been built.
+
 ## Problem Statement
 
 Clinical trial sites (the hospitals and clinics that run a drug trial) bill the drug company paying
@@ -351,3 +392,10 @@ kept with the design's cross-session copy in `~/.gstack/projects/`.
   our app) together from one file.
 - **Pagination:** an API returning a long list in pages, so the caller must ask for each page.
 - **Latency:** how long the user waits for a result.
+- **On-screen time:** the headline latency figure, from when the server receives Confirm until the
+  page has shown every match.
+- **Stored time:** the time from Confirm until the last match is saved, recorded beside the on-screen
+  time.
+- **Note (arithmetic):** a message that an arithmetic check was skipped, such as no printed total;
+  shown with the warnings but not counted as one.
+- **Playwright:** a tool that drives a real web browser from test code.

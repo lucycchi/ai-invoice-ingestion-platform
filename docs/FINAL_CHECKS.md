@@ -14,7 +14,7 @@ code changed.
 | Security audit (gstack `/cso`, static mode) | 1 problem | 1 | none |
 | Whole-project review (Codex, `gpt-6-sol`) | 8 problems, one of them the audit's | 7 | the overall cap on paid Claude calls |
 
-At the end, all 285 offline tests pass (`.venv/bin/pytest`). The live tests against the real Claude
+At the end, all 298 offline tests pass (`.venv/bin/pytest`). The live tests against the real Claude
 scored 47 of 47 lines earlier in this stage. After the final fixes, the rebuilt app was checked by hand
 against the running stack.
 
@@ -23,7 +23,7 @@ against the running stack.
 The gstack `/qa` skill drove a headless browser through the whole flow on http://localhost:8080:
 uploading each sample, confirming the sponsor, study and site, reviewing and overriding matches, then
 finalizing and downloading. It also checked phone-width layouts and the error paths. Its report is in
-`.gstack/qa-reports/run-20261021T023335Z/`, and its health score went from 92 to 99. That score is
+`.gstack/qa-reports/run-20261021T023335Z/` on the author's machine (not in the repository), and its health score went from 92 to 99. That score is
 provisional, because performance and accessibility were not scored separately.
 
 - **The study picker disappeared after the sponsor was changed (ISSUE-001, high).** When the user picked
@@ -47,7 +47,7 @@ ten-minute budget. Its runtime scanners were not used. Its coverage is **partial
 - it relied on the reviews at each milestone and on the whole-project review below for the app's code;
 - it could not read the git history.
 
-Its run record is under `~/.gstack/security/cso/` (run `1792550500864-7556fb6d75471e64`).
+Its run record is on the author's machine, under `~/.gstack/security/cso/` (run `1792550500864-7556fb6d75471e64`).
 
 - **The reference database was reachable from the network with a known password (medium).** The
   provided Postgres database and reference API were published on every network interface. The
@@ -155,8 +155,8 @@ had seen the project before. Both found every required item built. They also fou
   (parking, patient stipend, translation), and its price example was the medium invoice's IRB line. That
   made the 47-of-47 score partly a test of memory. **Fixed, as the author chose:** every example is now
   one that appears in no sample, and the tie-break rule is kept with a new example. This replaces the
-  example the spec's tie-break rule gives (R39), so it is recorded as a proposed decision for the author
-  to settle (D13). The live tests were rerun with the new prompt: 47 of 47, with both price flags and all
+  example the spec's tie-break rule gives (R39), so it is recorded as a decision, which the author settled
+  (D13). The live tests were rerun with the new prompt: 47 of 47, with both price flags and all
   three no-match lines. The browser tests were rerun too: all 8 pass.
 - **Opening "change the sponsor, study or site" for an invoice that doesn't exist gave a server
   error.** Fixed: it now gives the not-found page.
@@ -172,9 +172,11 @@ had seen the project before. Both found every required item built. They also fou
 - **Records.** The SQLAlchemy pin decision (D1) pointed to a root `DECISIONS.md` that doesn't exist;
   the pointer is removed. The plan said the status guard takes its lock with `BEGIN IMMEDIATE`, but the
   code uses an update that changes nothing, which takes the same lock. That change had no recorded
-  decision, and it is now recorded as proposed (D14).
-- **Delivery.** GitHub was 7 commits behind, and the GitLab project is still private. The push and a
-  fresh-clone check follow the author's approval of these final checks.
+  decision; it is now recorded, and the author settled it (D14).
+- **Delivery.** GitHub was 7 commits behind, and the GitLab project was still private. After the
+  author approved the final checks, both remotes were pushed. The author made the GitLab project
+  public, and a request with no login confirmed it. A fresh clone of the public GitHub repository then
+  passed all its offline tests, and its Docker images built.
 
 Codex could not run the offline tests in its read-only sandbox. The Claude agent ran them: all 278
 passed then, and all 279 pass after these fixes.
@@ -214,6 +216,52 @@ well. Ten problems were found, and the author chose to fix all of them:
 
 The fixes that change what a page says were made test-first, in `tests/test_ui_polish.py`. The visual
 ones were checked by retaking the screenshots. All 285 offline tests and all 8 browser tests pass.
+
+## Second review against the PRD and every document
+
+At the author's request, another fresh Claude agent and Codex run checked the code against the PRD,
+the PRD review's requirements table, the spec and every project document. At the same time, the author
+had every test suite run on a freshly rebuilt stack: 285 offline tests, the 4 live tests (47 of 47
+lines) and the 8 browser tests all passed. Both reviewers found every required item built. The author
+chose to fix everything else they found:
+
+- **A site lowered to "not found" still came already selected.** When a near-match site isn't linked
+  to the study, its level drops to not found, but its ID was kept, so the picker started on it. A
+  not-found field must start empty (R23). The ID is now cleared, and the name stays in the reason.
+- **A Compose setting could break the container.** Compose filled the reference API's address from
+  `.env`, which the README told people to set to `localhost` for running the app directly. Compose now
+  sets the container's own values: the reference API's address, the data folder and the listening
+  address. These override `.env`. The same check found that `python -m app` listened on every network
+  interface. It now listens on 127.0.0.1 unless told otherwise, and only the container uses
+  `0.0.0.0`. The README gained a "Running it without Docker" section, which was tried by hand: the app
+  listened on 127.0.0.1 only, read a sample and suggested the right sponsor.
+- **Skipped checks were counted as arithmetic warnings.** "No total is printed" and "a number is
+  missing" are notes, not mismatches. They are still shown, but they no longer count in the finalize
+  summary (R16, R49).
+- **A failed matching run recorded no end time.** Every run now records when it ended, whatever the
+  outcome (R51). A run cut short by an unexpected error or a restart is closed with the failure as its
+  outcome. An older database gains the new column when the app starts.
+- **Fractions of a cent gave a contradictory warning**, such as "$1.00 = $1.00, but the invoice says
+  $1.00". Amounts and totals are now compared to the cent.
+- **Smaller fixes:**
+  - Retry on an invoice that doesn't exist now answers 404.
+  - Error reasons now say the app log records where the error happened. The log keeps no error text,
+    so they no longer promise "details".
+  - "1 matches and 1 overrides" became singular.
+  - The oversized-upload page now uses the app's layout.
+  - The review picker lists each catalog item once.
+- **The timing table was measured again**, on a clean database, with the token-counting request now
+  counted. The large invoice matched in 8.4 seconds on screen cold and 7.3 seconds on the repeat,
+  against a 30-second target.
+- **Documents:**
+  - The decision log's links resolved from the wrong folder, and they now work.
+  - This record no longer calls the two settled decisions proposed, and it now records the delivery.
+  - The architecture document was brought up to date.
+  - The plan and the design, as records of their stages, each gained an "As built" section listing
+    where the code differs.
+
+One difference was kept on purpose: when the cache warm-up fails, the run records "not cached", the
+same as when no warm-up was tried. A test covers this, and the spec's wording (R37) is noted here.
 
 ## Glossary
 

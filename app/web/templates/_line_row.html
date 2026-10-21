@@ -30,6 +30,7 @@
         {# Starts on the line's current item, so pressing Change without choosing changes nothing. #}
         <option value="none"{% if not row.current %} selected{% endif %}>No match</option>
         {% set choices = ([row.current] if row.current else []) + ([row.ai_item] if row.ai_item and row.ai_item != row.current else []) + row.alternatives %}
+        {% set choices = choices|unique(attribute="catalog_item_id")|list %}
         {% for a in choices %}<option value="{{ a.catalog_item_id }}"{% if loop.first and row.current %} selected{% endif %}>{{ a.item_code }} · {{ a.description }}</option>{% endfor %}
       </select>
       <button type="submit" class="secondary">Change</button>

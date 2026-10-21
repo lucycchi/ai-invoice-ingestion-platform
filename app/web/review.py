@@ -7,7 +7,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from sqlalchemy import update
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app.checks import current_item_id, refresh_flag
+from app.checks import count_discrepancies, current_item_id, refresh_flag
 from app.clock import now_iso, seconds_between
 from app.models import CatalogSnapshotItem, Extraction, Invoice, LineItem, LineMatch, Run
 from app.status import Status, StatusConflict, locked_invoice
@@ -45,7 +45,7 @@ def review_summary(session, invoice_id: int) -> ReviewSummary:
         no_match=sum(1 for _, m in pairs if current_item_id(m) is None),
         price_flags=sum(1 for _, m in pairs if m.price_flag),
         overridden=sum(1 for _, m in pairs if m.override_kind != "none"),
-        arithmetic_warnings=len(json.loads(extraction.arithmetic_warnings)) if extraction else 0,
+        arithmetic_warnings=count_discrepancies(json.loads(extraction.arithmetic_warnings)) if extraction else 0,
     )
 
 
