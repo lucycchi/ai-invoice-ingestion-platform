@@ -1,6 +1,7 @@
 """Step 3: Claude suggests a catalog item for each invoice line, checked and saved as answers arrive."""
 
 import json
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
@@ -13,7 +14,9 @@ from app.clients.reference_api import ReferenceUnavailable
 from app.clock import now_iso
 from app.models import CatalogSnapshotItem, Invoice, LineItem, LineMatch, Run
 from app.schemas import GroupAnswer, LineResult
-from app.status import Status, claim, fail
+from app.status import Status, StatusConflict, claim, fail, locked_invoice
+
+log = logging.getLogger(__name__)
 
 GROUP_SIZE = 6
 MAX_AT_ONCE = 5
@@ -113,24 +116,32 @@ def run_matching(app, invoice_id: int) -> None:
                           catalog_text=catalog_text(snapshot))
     groups = [[_line_payload(line) for line in group] for group in group_lines(pending)]
 
-    def work(group: list[dict]) -> None:
-        to_send = group
-        for _ in range(2):  # the group's answer, and one resend of any lines it couldn't be used for
-            try:
-                answer, usage = claude.match_group(shared, to_send)
-            except ClaudeFailed as failed:
-                tally.add(failed.usage)
-                with tally.lock:
-                    tally.errors.append(failed.reason)
-                return
-            tally.add(usage)
-            accepted, failed_positions = check_answer(answer, {line["position"] for line in to_send}, catalog_ids)
-            _save(sessions, accepted, line_ids, unit_prices, catalog_prices, tally)
-            to_send = [line for line in to_send if line["position"] in failed_positions]
-            if not to_send:
-                return
-        with tally.lock:
-            tally.unusable += len(to_send)
+    def work(group: list[dict]) -> bool:
+        """Match one group. True if Claude answered (whether or not every line could be used)."""
+        try:
+            to_send = group
+            for _ in range(2):  # the group's answer, and one resend of any lines it couldn't be used for
+                try:
+                    answer, usage = claude.match_group(shared, to_send)
+                except ClaudeFailed as failed:
+                    tally.add(failed.usage)
+                    with tally.lock:
+                        tally.errors.append(failed.reason)
+                    return False
+                tally.add(usage)
+                accepted, failed_positions = check_answer(answer, {line["position"] for line in to_send}, catalog_ids)
+                _save(sessions, invoice_id, accepted, line_ids, unit_prices, catalog_prices, tally)
+                to_send = [line for line in to_send if line["position"] in failed_positions]
+                if not to_send:
+                    return True
+            with tally.lock:
+                tally.unusable += len(to_send)
+            return True
+        except Exception as err:  # e.g. a database lock: recorded so the run still gets its counts
+            log.exception("Unexpected error matching a group for invoice %s", invoice_id)
+            with tally.lock:
+                tally.errors.append(f"Unexpected error ({type(err).__name__}); details are in the app log")
+            return False
 
     cache_applied = False
     if groups:
@@ -138,36 +149,45 @@ def run_matching(app, invoice_id: int) -> None:
             shared_tokens = claude.count_shared_tokens(shared)
         except Exception:  # counting is only an optimisation; without it, nothing is warmed
             shared_tokens = 0
-        cache_applied = shared_tokens >= MIN_CACHEABLE_TOKENS and len(groups) > 1
         rest = groups
-        if cache_applied:  # the first group writes the cache before the others read it
-            work(groups[0])
+        if shared_tokens >= MIN_CACHEABLE_TOKENS and len(groups) > 1:
+            # The first group writes the cache before the others read it; it only counts if it worked.
+            cache_applied = work(groups[0])
             rest = groups[1:]
         with ThreadPoolExecutor(max_workers=MAX_AT_ONCE) as pool:
             list(pool.map(work, rest))
     _finish(sessions, invoice_id, tally, cache_applied)
 
 
-def _save(sessions, accepted: dict[int, LineResult], line_ids: dict[int, int], unit_prices: dict, catalog_prices: dict,
-          tally: _Tally) -> None:
+def _save(sessions, invoice_id: int, accepted: dict[int, LineResult], line_ids: dict[int, int], unit_prices: dict,
+          catalog_prices: dict, tally: _Tally) -> None:
+    """Save accepted results, but only while the invoice is still matching (checked in the same write)."""
     if not accepted:
         return
     with sessions() as s:
-        for position, result in accepted.items():
-            flag = None
-            if result.catalog_item_id is not None:
-                flag = price_flag(unit_prices[position], catalog_prices[result.catalog_item_id])
-            s.add(LineMatch(
-                price_flag=flag.to_json() if flag else None,
-                line_item_id=line_ids[position],
-                ai_catalog_item_id=result.catalog_item_id,
-                ai_confidence=result.confidence,
-                ai_reason=result.reason,
-                ai_alternatives=json.dumps(result.alternatives),
-            ))
-        s.commit()
+        try:
+            with locked_invoice(s, invoice_id, allowed={Status.MATCHING}):
+                _add_matches(s, accepted, line_ids, unit_prices, catalog_prices)
+        except StatusConflict:
+            log.info("Discarded late matching results for invoice %s: it is no longer matching", invoice_id)
+            return
     with tally.lock:
         tally.last_saved = now_iso()
+
+
+def _add_matches(s, accepted, line_ids, unit_prices, catalog_prices) -> None:
+    for position, result in accepted.items():
+        flag = None
+        if result.catalog_item_id is not None:
+            flag = price_flag(unit_prices[position], catalog_prices[result.catalog_item_id])
+        s.add(LineMatch(
+            price_flag=flag.to_json() if flag else None,
+            line_item_id=line_ids[position],
+            ai_catalog_item_id=result.catalog_item_id,
+            ai_confidence=result.confidence,
+            ai_reason=result.reason,
+            ai_alternatives=json.dumps(result.alternatives),
+        ))
 
 
 def _finish(sessions, invoice_id: int, tally: _Tally, cache_applied: bool, failure: str | None = None) -> None:
@@ -181,15 +201,20 @@ def _finish(sessions, invoice_id: int, tally: _Tally, cache_applied: bool, failu
                 failure = f"The AI's answer for {missing} line{'s' if missing != 1 else ''} could not be used"
         run = s.query(Run).filter_by(invoice_id=invoice_id, step="matching").order_by(Run.id.desc()).first()
         if run is not None:
-            run.stored_at = tally.last_saved or now_iso()
+            # A failed run has no "last result stored" moment, so its stored time stays empty.
+            run.stored_at = (tally.last_saved or now_iso()) if failure is None else None
             run.claude_requests = tally.usage.requests
             run.input_tokens = tally.usage.input_tokens
             run.output_tokens = tally.usage.output_tokens
             run.cache_read_tokens = tally.usage.cache_read_tokens
             run.cache_applied = cache_applied
             run.outcome = "succeeded" if failure is None else f"failed: {failure}"
-        if failure is None:
-            claim(s, invoice_id, expected={Status.MATCHING}, new=Status.IN_REVIEW)
-        else:
-            fail(s, invoice_id, failure)
+        try:
+            if failure is None:
+                claim(s, invoice_id, expected={Status.MATCHING}, new=Status.IN_REVIEW)
+            else:
+                fail(s, invoice_id, failure)
+        except StatusConflict:  # the user changed the metadata while matching ran; their change stands
+            if run is not None:
+                run.outcome = "stopped: the invoice was changed while matching ran"
         s.commit()

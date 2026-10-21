@@ -1,10 +1,13 @@
 {% set line, match = row.line, row.match %}
-<tr id="line-{{ line.position }}" class="line-row{% if match and not row.current %} no-match{% endif %}{% if row.flag %} flagged{% endif %}">
+<tr id="line-{{ line.position }}" class="line-row{% if not match %} pending{% elif not row.current %} no-match{% endif %}{% if row.flag %} flagged{% endif %}">
   <td>{{ line.position }}</td>
   <td>{{ line.description or "" }}</td>
   <td class="num">{{ "%g"|format(line.quantity) if line.quantity is not none else "—" }}</td>
   <td class="num">{{ "${:,.2f}".format(line.unit_price) if line.unit_price is not none else "—" }}</td>
   <td class="num">{{ "${:,.2f}".format(line.amount) if line.amount is not none else "—" }}</td>
+  {% if not match %}
+  <td colspan="{{ 4 if editable else 3 }}"><strong>No result yet</strong> <span class="muted">· Retry sends this line to Claude again.</span></td>
+  {% else %}
   <td>
     {% if row.current %}<strong>{{ row.current.item_code }}</strong> {{ row.current.description }}{% else %}<strong>No match</strong>{% endif %}
     {% if match.override_kind != "none" %}
@@ -34,5 +37,6 @@
     <form action="/invoices/{{ invoice.id }}/lines/{{ line.id }}/undo" method="post"><button type="submit">Undo</button></form>
     {% endif %}
   </td>
+  {% endif %}
   {% endif %}
 </tr>

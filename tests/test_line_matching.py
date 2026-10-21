@@ -274,3 +274,58 @@ def test_reference_down_during_catalog_fetch(env):
     env.reference.down = False
     invoice = env.invoice(invoice_id)
     assert invoice.status == "matching_failed" and "http://api:8000" in invoice.status_reason
+
+
+def test_started_at_is_the_confirm_time(env, monkeypatch):
+    import app.web.confirm as confirm
+
+    monkeypatch.setattr(confirm, "now_iso", lambda: "2026-01-01T00:00:00.000Z")
+    invoice_id = env.run()
+    assert env.matching_run(invoice_id).started_at == "2026-01-01T00:00:00.000Z"
+
+
+def test_late_results_discarded_after_metadata_change(env):
+    base = expected_answer("large_invoice")
+
+    def match(number, lines):
+        if lines[0]["position"] == 7:  # the user changes metadata while this group is with Claude
+            with env.client.app.state.sessions() as s:
+                s.query(Invoice).first().status = "awaiting_confirmation"
+                s.commit()
+        return base(number, lines)
+
+    env.claude.match = match
+    invoice_id = env.run()
+    assert not set(range(7, 13)) & set(env.matches(invoice_id))
+    assert env.invoice(invoice_id).status == "awaiting_confirmation"
+
+
+def test_failed_warm_up_not_reported_as_cached(env):
+    base = expected_answer("large_invoice")
+    env.claude.shared_tokens = MIN_CACHEABLE_TOKENS + 1
+    env.claude.match = lambda number, lines: (
+        ClaudeFailed("Claude timed out (after 3 tries)", Usage(requests=3)) if number == 0 else base(number, lines))
+    invoice_id = env.run()
+    assert not env.matching_run(invoice_id).cache_applied
+
+
+def test_unexpected_worker_error_still_records_the_run(env):
+    base = expected_answer("large_invoice")
+
+    def match(number, lines):
+        if lines[0]["position"] == 13:
+            return RuntimeError("database is locked")
+        return base(number, lines)
+
+    env.claude.match = match
+    invoice_id = env.run()
+    run = env.matching_run(invoice_id)
+    assert run.claude_requests == 4 and run.outcome.startswith("failed")
+    invoice = env.invoice(invoice_id)
+    assert invoice.status == "matching_failed" and "Unexpected error (RuntimeError)" in invoice.status_reason
+
+
+def test_failed_run_has_no_stored_time(env):
+    env.claude.match = _bad_for(set(range(7, 13)), expected_answer("large_invoice"))
+    invoice_id = env.run()
+    assert env.matching_run(invoice_id).stored_at is None

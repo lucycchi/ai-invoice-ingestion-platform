@@ -17,10 +17,10 @@ refuses any step whose status is wrong, which is what makes the confirmation gat
 
 **Where the project stands.** The intent (`docs/DESIGN.md`, tagged `tortoise/ideas`) and the spec
 (`docs/SPEC.md`, 63 requirements, tagged `tortoise/spec`) are approved. This document is the
-architecture, approved and tagged `tortoise/architecture`. Milestones 1 and 2 are built: the app skeleton,
+architecture, approved and tagged `tortoise/architecture`. Milestones 1 to 3 are built: the app skeleton,
 database, reference API client, status guard, upload screen, Claude client, extraction, metadata
-suggestions and the confirmation gate. Line matching, review, finalizing and delivery follow in
-milestones 3 and 4.
+suggestions, the confirmation gate, line matching, price flags and the review screen. Finalizing, the
+JSON download, live tests and delivery follow in milestone 4.
 
 Requirements are referred to by name with their spec number in brackets, such as "the gate refusing
 early matching (R28)".
@@ -144,34 +144,34 @@ erDiagram
 
     INVOICES {
         INTEGER id PK "whole number, given automatically"
-        VARCHAR status "one of seven status names"
-        TEXT status_reason "why it failed, if it did"
-        TEXT original_filename "the name the user uploaded"
-        TEXT stored_path "generated file name on the volume"
-        VARCHAR media_type "PDF, PNG, JPEG or WebP"
+        VARCHAR status "text: one of seven status names"
+        TEXT status_reason "text: why it failed, if it did"
+        TEXT original_filename "text: the name the user uploaded"
+        TEXT stored_path "text: generated file name on the volume"
+        VARCHAR media_type "text: PDF, PNG, JPEG or WebP"
         VARCHAR uploaded_at "time of upload, as ISO 8601 text with milliseconds"
         INTEGER confirmed_sponsor_id "whole number: reference API sponsor ID, once confirmed"
         INTEGER confirmed_study_id "whole number: reference API study ID, once confirmed"
         INTEGER confirmed_site_id "whole number: reference API site ID, once confirmed"
-        TEXT confirmed_names "sponsor, study and site names as JSON"
-        TEXT finalize_summary "the confirmed summary as JSON"
+        TEXT confirmed_names "text: sponsor, study and site names as JSON"
+        TEXT finalize_summary "text: the confirmed summary as JSON"
         VARCHAR finalized_at "time of finalizing, as ISO 8601 text"
     }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice this reading belongs to, unique"
         BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
-        TEXT header "extracted header fields as JSON"
+        TEXT header "text: extracted header fields as JSON"
         VARCHAR printed_total "exact decimal, or empty if none"
-        TEXT arithmetic_warnings "list of warnings as JSON"
-        TEXT raw_answer "Claude's full answer as JSON"
-        VARCHAR model "model name used"
+        TEXT arithmetic_warnings "text: list of warnings as JSON"
+        TEXT raw_answer "text: Claude's full answer as JSON"
+        VARCHAR model "text: model name used"
     }
     LINE_ITEMS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice it was read from"
         INTEGER position "whole number: order on the invoice, from 1, unique per invoice"
-        TEXT description "as printed"
+        TEXT description "text: as printed"
         FLOAT quantity "decimal number as printed, or empty if not printed"
         VARCHAR unit_price "exact decimal"
         VARCHAR amount "exact decimal"
@@ -179,36 +179,36 @@ erDiagram
     METADATA_SUGGESTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice suggested for"
-        VARCHAR field "sponsor, study or site, unique per invoice"
+        VARCHAR field "text: sponsor, study or site, unique per invoice"
         INTEGER entity_id "whole number: suggested reference API ID, or empty"
-        TEXT entity_name "suggested name"
-        VARCHAR confidence "exact, likely, uncertain or not_found"
-        TEXT reasons "list of plain sentences as JSON"
+        TEXT entity_name "text: suggested name"
+        VARCHAR confidence "text: exact, likely, uncertain or not_found"
+        TEXT reasons "text: list of plain sentences as JSON"
     }
     CATALOG_SNAPSHOT {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice the catalog was fetched for"
         INTEGER catalog_item_id "whole number: reference API catalog item ID, unique per invoice"
-        VARCHAR item_code "such as ADMIN-IRB"
-        TEXT description "catalog description"
-        VARCHAR category "such as administrative"
+        VARCHAR item_code "text: such as ADMIN-IRB"
+        TEXT description "text: catalog description"
+        VARCHAR category "text: such as administrative"
         VARCHAR unit_price "exact decimal, or empty"
     }
     LINE_MATCHES {
         INTEGER id PK "whole number, given automatically"
         INTEGER line_item_id FK "whole number: the line this match is for, unique"
         INTEGER ai_catalog_item_id "whole number: AI's choice, or empty for no match"
-        VARCHAR ai_confidence "high, medium or low"
-        TEXT ai_reason "one sentence"
-        TEXT ai_alternatives "up to two item IDs as JSON"
-        VARCHAR override_kind "none, item or no_match"
+        VARCHAR ai_confidence "text: high, medium or low"
+        TEXT ai_reason "text: one sentence"
+        TEXT ai_alternatives "text: up to two item IDs as JSON"
+        VARCHAR override_kind "text: none, item or no_match"
         INTEGER override_catalog_item_id "whole number: the person's choice, if any"
-        TEXT price_flag "both prices and the difference as JSON, or empty"
+        TEXT price_flag "text: both prices, the difference, the percentage and the shown sentence as JSON, or empty"
     }
     RUNS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice the run worked on"
-        VARCHAR step "extraction or matching"
+        VARCHAR step "text: extraction or matching"
         VARCHAR started_at "time the server received the request, as ISO 8601 text"
         VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
         VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
@@ -217,7 +217,7 @@ erDiagram
         INTEGER output_tokens "whole number: tokens received"
         INTEGER cache_read_tokens "whole number: tokens read from Claude's cache"
         BOOLEAN cache_applied "yes or no: the first group warmed the cache"
-        TEXT outcome "succeeded or failed, with the reason"
+        TEXT outcome "text: succeeded or failed, with the reason"
     }
 ```
 
@@ -250,7 +250,7 @@ catalog snapshot, keeps its line items and extraction, and its runs stay as hist
 | line_items | id 71, invoice_id 7, position 11, description `IRB/Ethics Fees`, quantity 1, unit_price `550.00`, amount `550.00` |
 | metadata_suggestions | id 20, invoice_id 7, field `study`, entity_id 1, entity_name `LUMIN-2024`, confidence `exact`, reasons `["Protocol NWD-LUM-2024-001 matches exactly."]` |
 | catalog_snapshot | id 301, invoice_id 7, catalog_item_id 27, item_code `ADMIN-IRB`, description `IRB Submission and Maintenance`, unit_price `500.00` |
-| line_matches | id 71, line_item_id 71, ai_catalog_item_id 27, ai_confidence `high`, override_kind `none`, price_flag `{"invoice":"550.00","catalog":"500.00","diff":"50.00","pct":"10.0"}` |
+| line_matches | id 71, line_item_id 71, ai_catalog_item_id 27, ai_confidence `high`, override_kind `none`, price_flag `{"invoice":"550.00","catalog":"500.00","diff":"50.00","pct":"10.0","text":"Invoice $550.00, catalog $500.00, +$50.00 (+10%)"}` |
 | runs | id 15, invoice_id 7, step `matching`, claude_requests 2, input_tokens 6400, output_tokens 900, cache_read_tokens 0, cache_applied 0, outcome `succeeded` |
 
 ## 4. Request flows
@@ -385,24 +385,25 @@ sequenceDiagram
     participant F as Checks and price flags
     participant S as Data store
 
-    R->>A: 1. fetches the confirmed catalog, every page
-    A-->>R: 2. returns all catalog items
-    R->>S: 3. saves the catalog snapshot
+    L->>A: 1. fetches the confirmed catalog, every page
+    A-->>L: 2. returns all catalog items
+    L->>S: 3. saves the catalog snapshot
     R->>L: 4. hands lines without a result
     L->>C: 5. counts tokens in the shared prompt start
     L->>C: 6. sends the first group alone if cacheable
     L->>C: 7. sends the other groups, five at most at once
     C-->>L: 8. returns one answer per group
-    L->>F: 9. checks each answer, then compares prices
-    F->>S: 10. saves each accepted line's result
+    L->>F: 9. checks each answer, then asks for price flags
+    L->>S: 10. saves each accepted line's result and flag
     R->>S: 11. sets in review, or matching failed
 ```
 
 This shows how matches are produced and saved as they arrive.
 
-1. On a first run, the runner fetches the catalog for the confirmed sponsor and study, with
+1. On a first run, line matching fetches the catalog for the confirmed sponsor and study, with
    `page_size=200`, until every page is in (the paging rule, R34). The large catalog is 100 items.
-   On Retry, steps 1 to 3 are skipped and the saved snapshot is used, so every line on the invoice
+   If the reference API doesn't answer, the invoice goes to matching failed with the address named.
+   On Retry, steps 1 to 3 are skipped when a snapshot was saved, and the saved snapshot is used, so every line on the invoice
    is matched against the same catalog.
 2. All items come back.
 3. They are saved as the invoice's catalog snapshot (section 3). Changing the metadata deletes the
@@ -411,15 +412,25 @@ This shows how matches are produced and saved as they arrive.
    that is every line; on Retry it is only the missing ones (R30).
 5. Line matching asks Claude's token-counting endpoint how long the shared prompt start is (the
    instructions plus the catalog).
-6. If it is at least the model's minimum cacheable length, the first group of up to six lines is sent
-   alone so it writes the cache (the batching rule, R37). Otherwise this step is skipped.
+6. If it is at least the model's minimum cacheable length and there is more than one group, the
+   first group of up to six lines is sent alone so it writes the cache (the batching rule, R37). The
+   run records the cache as used only if that first request succeeded. If counting fails, or the
+   prompt is too short, this step is skipped.
 7. The remaining groups are sent at the same time, at most five requests at once.
 8. Each request returns one structured answer for its group (section 6).
-9. Each answer is checked: one result per line, every catalog ID in the snapshot (R40). A failing
-   group is sent once more. Then price flags are worked out (R43, R44).
-10. Each accepted line's result is saved straight away, so the next progress check shows it (R42).
+9. Each answer is checked: one result per line, every catalog ID (including alternatives) in the
+   snapshot, at most two alternatives (R40). Accepted lines are kept; only the lines whose answers
+   failed the checks are sent once more, as one request. Price flags are then worked out (R43, R44).
+   (Separately, the Claude client already tries up to three times for errors and unreadable answers,
+   section 6; this resend is for answers that arrived but named lines or items wrongly.)
+10. Each accepted line's result and flag are saved straight away, so the next progress check shows
+    it (R42). Each save checks, in the same write, that the invoice is still matching; if the user
+    changed the metadata meanwhile, the late result is discarded and their change stands.
 11. When every line has a result, the status becomes in review and the stored time is recorded. If
-    any line is still without one, the status becomes matching failed with the reason (R40, R41).
+    any line is still without one, the status becomes matching failed with the reason (R40, R41), and
+    the run's stored time stays empty, since no "last result" moment exists. An unexpected error in
+    a group (such as a database lock) is caught in that group, so the run's counts and reason are
+    still recorded. The matching-failed screen lists every line, marking those without a result.
 
 ### 4.4 Overriding a match
 
@@ -457,8 +468,10 @@ This shows a person replacing the AI's choice for one line.
 7. Inside the same transaction, the price flag is recomputed for the new choice (R45). "No match"
    clears it.
 8. The override is saved beside the AI's original suggestion (R47), and the transaction commits.
-9. Only that line and the summary at the top are redrawn. Undo is the same flow with the override
-   removed.
+9. The page reloads at that line, with the summary updated. Undo is the same flow with the override
+   removed. Choosing the AI's own suggestion counts as no override. Each picker starts on the line's
+   current item, and search results start with "Choose an item…", which the server refuses, so
+   pressing Change without choosing never changes a match.
 
 ### 4.5 Finalizing and downloading
 
@@ -541,11 +554,13 @@ Both calls go through the Claude client, which uses the official `anthropic` Pyt
   fit the shape counts as failed and goes through the same retry rules as an error. A failed call
   still counts as a request in the run's numbers, and the reason shown never repeats the error's own
   text.
-- **Prompts.** The extraction instructions live in `app/prompts/extraction.md`; the matching
-  instructions will live beside them.
+- **Prompts.** The extraction instructions live in `app/prompts/extraction.md`, and the matching
+  instructions in `app/prompts/matching_instructions.md`.
 - **Timeouts and retries.** The `anthropic` library's own retries are turned off, so these are the
   total. Extraction: 120 seconds per call; matching: 60 seconds per call; each followed by up to two
-  more tries after waits of 1 and 3 seconds (R62, R41). Every request sets `max_tokens=16000`.
+  more tries after waits of 1 and 3 seconds (R62, R41). A request the API rejects as invalid (an
+  HTTP 4xx other than 408, 409 or 429) is not retried, since it would fail the same way. Every
+  request sets `max_tokens=16000`.
 - **Usage.** Every answer's token counts are added to the current run (R51).
 - **The key** is read once from `ANTHROPIC_API_KEY` at startup and is never logged or stored (R4).
 
@@ -719,9 +734,9 @@ them, but the tests call them directly to prove the gate holds.
 | `POST /invoices/{id}/change-metadata` | Clears matches, overrides, the catalog snapshot and the confirmed choices; back to awaiting confirmation | 409 wrong status |
 | `POST /invoices/{id}/retry` | Reruns the failed step | 409 wrong status |
 | `GET /invoices/{id}/catalog?q=` | Searches the catalog snapshot for a picker | |
-| `POST /invoices/{id}/lines/{line_id}/override` | Saves an override or "No match" | 409 wrong status |
-| `POST /invoices/{id}/lines/{line_id}/undo` | Removes an override | 409 wrong status |
-| `POST /invoices/{id}/shown` | The page reports that every result is on screen; recorded only if the matching run has stored every result, and only the first time | 409 run not finished |
+| `POST /invoices/{id}/lines/{line_id}/override` | Saves an override or "No match"; choosing the AI's own suggestion clears the override | 404 line not on this invoice, 409 wrong status or line without a result, 422 item not in this invoice's catalog or nothing chosen |
+| `POST /invoices/{id}/lines/{line_id}/undo` | Removes an override | 404 line not on this invoice, 409 wrong status or line without a result |
+| `POST /invoices/{id}/shown` | The review page, reached straight from live matching, reports that every result is on screen; recorded only once the run has stored every result, only the first time (a write that only succeeds while no time is recorded), and answers with the updated times | 409 run not finished |
 | `GET /invoices/{id}/finalize` | The summary to confirm | 409 wrong status |
 | `POST /invoices/{id}/finalize` | Finalizes with the confirmed summary | 409 wrong status or changed counts |
 | `GET /invoices/{id}/export.json` | The JSON download | 409 not finalized |
@@ -768,14 +783,16 @@ This shows where each part lives and which code uses which.
 - `app/uploads.py` (not drawn) checks an upload and stores it under a generated name.
 - `app/clock.py` (not drawn) gives the current time as ISO 8601 text.
 - `app/web/` holds the route handlers (`routes.py` for uploads, progress and the invoice page;
-  `confirm.py` for the confirmation screen and the gate), the Jinja2 templates, the static htmx file,
+  `confirm.py` for the confirmation screen and the gate; `review.py` for matching progress, the
+  review screen, catalog search, overrides, undo and the on-screen time report), the Jinja2 templates, the static htmx file,
   and `cross_site.py`, which serves only `localhost` and `127.0.0.1` (blocking DNS-rebinding attacks)
   and refuses state-changing requests a browser marks as coming from another site, or whose Origin
   isn't the app's own address and port (HTTP 403).
 - `app/prompts/` holds the instructions sent to Claude, starting with `extraction.md`.
 - `app/status.py` holds the table of allowed moves and the claim function. It is the only place a
   status is written.
-- `app/jobs.py` runs claimed work in the background and owns the thread pool.
+- `app/jobs.py` runs claimed work in the background; `app/steps/line_matching.py` owns the thread
+  pool of five.
 - `app/steps/extraction.py`, `app/steps/metadata.py` and `app/steps/line_matching.py` are the three
   separate pipeline steps the brief asks for.
 - `app/checks.py` holds price flags and the arithmetic checks.

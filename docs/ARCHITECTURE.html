@@ -50,7 +50,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <h2>Summary</h2>
 <p><strong>The problem.</strong> A clinical trial site sends an invoice to the drug company paying for the trial (the sponsor). Someone has to tie the invoice to the right sponsor, study and site, and check each billed line against the approved items and prices for that sponsor and study (the catalog). The take-home brief adds one hard rule: line items may only be matched after a person has confirmed the sponsor and study, because those decide which catalog applies.</p>
 <p><strong>The approach.</strong> One Python web app, built with FastAPI and plain server-rendered pages, runs as a third container next to the provided reference API and its Postgres database. It keeps its own data in an SQLite file on a Docker volume. Claude (<code>claude-opus-5-5</code>) reads each uploaded file and later suggests a catalog item for each line. Matching the invoice's header facts to sponsors, studies and sites is ordinary code. Every step is guarded by a stored status on the invoice, and the server refuses any step whose status is wrong, which is what makes the confirmation gate real.</p>
-<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. Milestones 1 and 2 are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions and the confirmation gate. Line matching, review, finalizing and delivery follow in milestones 3 and 4.</p>
+<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. Milestones 1 to 3 are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions, the confirmation gate, line matching, price flags and the review screen. Finalizing, the JSON download, live tests and delivery follow in milestone 4.</p>
 <p>Requirements are referred to by name with their spec number in brackets, such as "the gate refusing early matching (R28)".</p>
 <h2>Diagrams in this document</h2>
 <table>
@@ -160,34 +160,34 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 
     INVOICES {
         INTEGER id PK "whole number, given automatically"
-        VARCHAR status "one of seven status names"
-        TEXT status_reason "why it failed, if it did"
-        TEXT original_filename "the name the user uploaded"
-        TEXT stored_path "generated file name on the volume"
-        VARCHAR media_type "PDF, PNG, JPEG or WebP"
+        VARCHAR status "text: one of seven status names"
+        TEXT status_reason "text: why it failed, if it did"
+        TEXT original_filename "text: the name the user uploaded"
+        TEXT stored_path "text: generated file name on the volume"
+        VARCHAR media_type "text: PDF, PNG, JPEG or WebP"
         VARCHAR uploaded_at "time of upload, as ISO 8601 text with milliseconds"
         INTEGER confirmed_sponsor_id "whole number: reference API sponsor ID, once confirmed"
         INTEGER confirmed_study_id "whole number: reference API study ID, once confirmed"
         INTEGER confirmed_site_id "whole number: reference API site ID, once confirmed"
-        TEXT confirmed_names "sponsor, study and site names as JSON"
-        TEXT finalize_summary "the confirmed summary as JSON"
+        TEXT confirmed_names "text: sponsor, study and site names as JSON"
+        TEXT finalize_summary "text: the confirmed summary as JSON"
         VARCHAR finalized_at "time of finalizing, as ISO 8601 text"
     }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice this reading belongs to, unique"
         BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
-        TEXT header "extracted header fields as JSON"
+        TEXT header "text: extracted header fields as JSON"
         VARCHAR printed_total "exact decimal, or empty if none"
-        TEXT arithmetic_warnings "list of warnings as JSON"
-        TEXT raw_answer "Claude's full answer as JSON"
-        VARCHAR model "model name used"
+        TEXT arithmetic_warnings "text: list of warnings as JSON"
+        TEXT raw_answer "text: Claude's full answer as JSON"
+        VARCHAR model "text: model name used"
     }
     LINE_ITEMS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice it was read from"
         INTEGER position "whole number: order on the invoice, from 1, unique per invoice"
-        TEXT description "as printed"
+        TEXT description "text: as printed"
         FLOAT quantity "decimal number as printed, or empty if not printed"
         VARCHAR unit_price "exact decimal"
         VARCHAR amount "exact decimal"
@@ -195,36 +195,36 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     METADATA_SUGGESTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice suggested for"
-        VARCHAR field "sponsor, study or site, unique per invoice"
+        VARCHAR field "text: sponsor, study or site, unique per invoice"
         INTEGER entity_id "whole number: suggested reference API ID, or empty"
-        TEXT entity_name "suggested name"
-        VARCHAR confidence "exact, likely, uncertain or not_found"
-        TEXT reasons "list of plain sentences as JSON"
+        TEXT entity_name "text: suggested name"
+        VARCHAR confidence "text: exact, likely, uncertain or not_found"
+        TEXT reasons "text: list of plain sentences as JSON"
     }
     CATALOG_SNAPSHOT {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice the catalog was fetched for"
         INTEGER catalog_item_id "whole number: reference API catalog item ID, unique per invoice"
-        VARCHAR item_code "such as ADMIN-IRB"
-        TEXT description "catalog description"
-        VARCHAR category "such as administrative"
+        VARCHAR item_code "text: such as ADMIN-IRB"
+        TEXT description "text: catalog description"
+        VARCHAR category "text: such as administrative"
         VARCHAR unit_price "exact decimal, or empty"
     }
     LINE_MATCHES {
         INTEGER id PK "whole number, given automatically"
         INTEGER line_item_id FK "whole number: the line this match is for, unique"
         INTEGER ai_catalog_item_id "whole number: AI's choice, or empty for no match"
-        VARCHAR ai_confidence "high, medium or low"
-        TEXT ai_reason "one sentence"
-        TEXT ai_alternatives "up to two item IDs as JSON"
-        VARCHAR override_kind "none, item or no_match"
+        VARCHAR ai_confidence "text: high, medium or low"
+        TEXT ai_reason "text: one sentence"
+        TEXT ai_alternatives "text: up to two item IDs as JSON"
+        VARCHAR override_kind "text: none, item or no_match"
         INTEGER override_catalog_item_id "whole number: the person's choice, if any"
-        TEXT price_flag "both prices and the difference as JSON, or empty"
+        TEXT price_flag "text: both prices, the difference, the percentage and the shown sentence as JSON, or empty"
     }
     RUNS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice the run worked on"
-        VARCHAR step "extraction or matching"
+        VARCHAR step "text: extraction or matching"
         VARCHAR started_at "time the server received the request, as ISO 8601 text"
         VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
         VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
@@ -233,7 +233,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
         INTEGER output_tokens "whole number: tokens received"
         INTEGER cache_read_tokens "whole number: tokens read from Claude's cache"
         BOOLEAN cache_applied "yes or no: the first group warmed the cache"
-        TEXT outcome "succeeded or failed, with the reason"
+        TEXT outcome "text: succeeded or failed, with the reason"
     }</pre>
 <p>This shows the seven tables and how they link. Every table has its own <code>id</code>. The database also enforces these uniqueness rules, so the "at most one" links can't be broken by a bug: one extraction per invoice, one suggestion per field per invoice, one line per position per invoice, one catalog snapshot row per catalog item per invoice, and one match per line. Quantities are stored as numbers (the numbers rule, R15) and turned into exact decimals before any arithmetic. In words:</p>
 <ul>
@@ -261,7 +261,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td>line_items</td><td>id 71, invoice_id 7, position 11, description <code>IRB/Ethics Fees</code>, quantity 1, unit_price <code>550.00</code>, amount <code>550.00</code></td></tr>
 <tr><td>metadata_suggestions</td><td>id 20, invoice_id 7, field <code>study</code>, entity_id 1, entity_name <code>LUMIN-2024</code>, confidence <code>exact</code>, reasons <code>["Protocol NWD-LUM-2024-001 matches exactly."]</code></td></tr>
 <tr><td>catalog_snapshot</td><td>id 301, invoice_id 7, catalog_item_id 27, item_code <code>ADMIN-IRB</code>, description <code>IRB Submission and Maintenance</code>, unit_price <code>500.00</code></td></tr>
-<tr><td>line_matches</td><td>id 71, line_item_id 71, ai_catalog_item_id 27, ai_confidence <code>high</code>, override_kind <code>none</code>, price_flag <code>{"invoice":"550.00","catalog":"500.00","diff":"50.00","pct":"10.0"}</code></td></tr>
+<tr><td>line_matches</td><td>id 71, line_item_id 71, ai_catalog_item_id 27, ai_confidence <code>high</code>, override_kind <code>none</code>, price_flag <code>{"invoice":"550.00","catalog":"500.00","diff":"50.00","pct":"10.0","text":"Invoice $550.00, catalog $500.00, +$50.00 (+10%)"}</code></td></tr>
 <tr><td>runs</td><td>id 15, invoice_id 7, step <code>matching</code>, claude_requests 2, input_tokens 6400, output_tokens 900, cache_read_tokens 0, cache_applied 0, outcome <code>succeeded</code></td></tr>
 </tbody>
 </table>
@@ -379,22 +379,22 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     participant F as Checks and price flags
     participant S as Data store
 
-    R-&gt;&gt;A: 1. fetches the confirmed catalog, every page
-    A--&gt;&gt;R: 2. returns all catalog items
-    R-&gt;&gt;S: 3. saves the catalog snapshot
+    L-&gt;&gt;A: 1. fetches the confirmed catalog, every page
+    A--&gt;&gt;L: 2. returns all catalog items
+    L-&gt;&gt;S: 3. saves the catalog snapshot
     R-&gt;&gt;L: 4. hands lines without a result
     L-&gt;&gt;C: 5. counts tokens in the shared prompt start
     L-&gt;&gt;C: 6. sends the first group alone if cacheable
     L-&gt;&gt;C: 7. sends the other groups, five at most at once
     C--&gt;&gt;L: 8. returns one answer per group
-    L-&gt;&gt;F: 9. checks each answer, then compares prices
-    F-&gt;&gt;S: 10. saves each accepted line's result
+    L-&gt;&gt;F: 9. checks each answer, then asks for price flags
+    L-&gt;&gt;S: 10. saves each accepted line's result and flag
     R-&gt;&gt;S: 11. sets in review, or matching failed</pre>
 <p>This shows how matches are produced and saved as they arrive.</p>
 <ol>
-<li>On a first run, the runner fetches the catalog for the confirmed sponsor and study, with</li>
+<li>On a first run, line matching fetches the catalog for the confirmed sponsor and study, with</li>
 </ol>
-<p><code>page_size=200</code>, until every page is in (the paging rule, R34). The large catalog is 100 items. On Retry, steps 1 to 3 are skipped and the saved snapshot is used, so every line on the invoice is matched against the same catalog.</p>
+<p><code>page_size=200</code>, until every page is in (the paging rule, R34). The large catalog is 100 items. If the reference API doesn't answer, the invoice goes to matching failed with the address named. On Retry, steps 1 to 3 are skipped when a snapshot was saved, and the saved snapshot is used, so every line on the invoice is matched against the same catalog.</p>
 <ol>
 <li>All items come back.</li>
 <li>They are saved as the invoice's catalog snapshot (section 3). Changing the metadata deletes the</li>
@@ -409,20 +409,23 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ol>
 <p>instructions plus the catalog).</p>
 <ol>
-<li>If it is at least the model's minimum cacheable length, the first group of up to six lines is sent</li>
+<li>If it is at least the model's minimum cacheable length and there is more than one group, the</li>
 </ol>
-<p>alone so it writes the cache (the batching rule, R37). Otherwise this step is skipped.</p>
+<p>first group of up to six lines is sent alone so it writes the cache (the batching rule, R37). The run records the cache as used only if that first request succeeded. If counting fails, or the prompt is too short, this step is skipped.</p>
 <ol>
 <li>The remaining groups are sent at the same time, at most five requests at once.</li>
 <li>Each request returns one structured answer for its group (section 6).</li>
-<li>Each answer is checked: one result per line, every catalog ID in the snapshot (R40). A failing</li>
+<li>Each answer is checked: one result per line, every catalog ID (including alternatives) in the</li>
 </ol>
-<p>group is sent once more. Then price flags are worked out (R43, R44).</p>
+<p>snapshot, at most two alternatives (R40). Accepted lines are kept; only the lines whose answers failed the checks are sent once more, as one request. Price flags are then worked out (R43, R44). (Separately, the Claude client already tries up to three times for errors and unreadable answers, section 6; this resend is for answers that arrived but named lines or items wrongly.)</p>
 <ol>
-<li>Each accepted line's result is saved straight away, so the next progress check shows it (R42).</li>
+<li>Each accepted line's result and flag are saved straight away, so the next progress check shows</li>
+</ol>
+<p>it (R42). Each save checks, in the same write, that the invoice is still matching; if the user changed the metadata meanwhile, the late result is discarded and their change stands.</p>
+<ol>
 <li>When every line has a result, the status becomes in review and the stored time is recorded. If</li>
 </ol>
-<p>any line is still without one, the status becomes matching failed with the reason (R40, R41).</p>
+<p>any line is still without one, the status becomes matching failed with the reason (R40, R41), and the run's stored time stays empty, since no "last result" moment exists. An unexpected error in a group (such as a database lock) is caught in that group, so the run's counts and reason are still recorded. The matching-failed screen lists every line, marking those without a result.</p>
 <h3>4.4 Overriding a match</h3>
 <pre class="mermaid">sequenceDiagram
     actor U as Person
@@ -459,9 +462,9 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>clears it.</p>
 <ol>
 <li>The override is saved beside the AI's original suggestion (R47), and the transaction commits.</li>
-<li>Only that line and the summary at the top are redrawn. Undo is the same flow with the override</li>
+<li>The page reloads at that line, with the summary updated. Undo is the same flow with the override</li>
 </ol>
-<p>removed.</p>
+<p>removed. Choosing the AI's own suggestion counts as no override. Each picker starts on the line's current item, and search results start with "Choose an item…", which the server refuses, so pressing Change without choosing never changes a match.</p>
 <h3>4.5 Finalizing and downloading</h3>
 <pre class="mermaid">sequenceDiagram
     actor U as Person
@@ -538,13 +541,13 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ul>
 <p>fit the shape counts as failed and goes through the same retry rules as an error. A failed call still counts as a request in the run's numbers, and the reason shown never repeats the error's own text.</p>
 <ul>
-<li><strong>Prompts.</strong> The extraction instructions live in <code>app/prompts/extraction.md</code>; the matching</li>
+<li><strong>Prompts.</strong> The extraction instructions live in <code>app/prompts/extraction.md</code>, and the matching</li>
 </ul>
-<p>instructions will live beside them.</p>
+<p>instructions in <code>app/prompts/matching_instructions.md</code>.</p>
 <ul>
 <li><strong>Timeouts and retries.</strong> The <code>anthropic</code> library's own retries are turned off, so these are the</li>
 </ul>
-<p>total. Extraction: 120 seconds per call; matching: 60 seconds per call; each followed by up to two more tries after waits of 1 and 3 seconds (R62, R41). Every request sets <code>max_tokens=16000</code>.</p>
+<p>total. Extraction: 120 seconds per call; matching: 60 seconds per call; each followed by up to two more tries after waits of 1 and 3 seconds (R62, R41). A request the API rejects as invalid (an HTTP 4xx other than 408, 409 or 429) is not retried, since it would fail the same way. Every request sets <code>max_tokens=16000</code>.</p>
 <ul>
 <li><strong>Usage.</strong> Every answer's token counts are added to the current run (R51).</li>
 <li><strong>The key</strong> is read once from <code>ANTHROPIC_API_KEY</code> at startup and is never logged or stored (R4).</li>
@@ -681,9 +684,9 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td><code>POST /invoices/{id}/change-metadata</code></td><td>Clears matches, overrides, the catalog snapshot and the confirmed choices; back to awaiting confirmation</td><td>409 wrong status</td></tr>
 <tr><td><code>POST /invoices/{id}/retry</code></td><td>Reruns the failed step</td><td>409 wrong status</td></tr>
 <tr><td><code>GET /invoices/{id}/catalog?q=</code></td><td>Searches the catalog snapshot for a picker</td><td></td></tr>
-<tr><td><code>POST /invoices/{id}/lines/{line_id}/override</code></td><td>Saves an override or "No match"</td><td>409 wrong status</td></tr>
-<tr><td><code>POST /invoices/{id}/lines/{line_id}/undo</code></td><td>Removes an override</td><td>409 wrong status</td></tr>
-<tr><td><code>POST /invoices/{id}/shown</code></td><td>The page reports that every result is on screen; recorded only if the matching run has stored every result, and only the first time</td><td>409 run not finished</td></tr>
+<tr><td><code>POST /invoices/{id}/lines/{line_id}/override</code></td><td>Saves an override or "No match"; choosing the AI's own suggestion clears the override</td><td>404 line not on this invoice, 409 wrong status or line without a result, 422 item not in this invoice's catalog or nothing chosen</td></tr>
+<tr><td><code>POST /invoices/{id}/lines/{line_id}/undo</code></td><td>Removes an override</td><td>404 line not on this invoice, 409 wrong status or line without a result</td></tr>
+<tr><td><code>POST /invoices/{id}/shown</code></td><td>The review page, reached straight from live matching, reports that every result is on screen; recorded only once the run has stored every result, only the first time (a write that only succeeds while no time is recorded), and answers with the updated times</td><td>409 run not finished</td></tr>
 <tr><td><code>GET /invoices/{id}/finalize</code></td><td>The summary to confirm</td><td>409 wrong status</td></tr>
 <tr><td><code>POST /invoices/{id}/finalize</code></td><td>Finalizes with the confirmed summary</td><td>409 wrong status or changed counts</td></tr>
 <tr><td><code>GET /invoices/{id}/export.json</code></td><td>The JSON download</td><td>409 not finalized</td></tr>
@@ -729,14 +732,17 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><code>app/clock.py</code> (not drawn) gives the current time as ISO 8601 text.</li>
 <li><code>app/web/</code> holds the route handlers (<code>routes.py</code> for uploads, progress and the invoice page;</li>
 </ul>
-<p><code>confirm.py</code> for the confirmation screen and the gate), the Jinja2 templates, the static htmx file, and <code>cross_site.py</code>, which serves only <code>localhost</code> and <code>127.0.0.1</code> (blocking DNS-rebinding attacks) and refuses state-changing requests a browser marks as coming from another site, or whose Origin isn't the app's own address and port (HTTP 403).</p>
+<p><code>confirm.py</code> for the confirmation screen and the gate; <code>review.py</code> for matching progress, the review screen, catalog search, overrides, undo and the on-screen time report), the Jinja2 templates, the static htmx file, and <code>cross_site.py</code>, which serves only <code>localhost</code> and <code>127.0.0.1</code> (blocking DNS-rebinding attacks) and refuses state-changing requests a browser marks as coming from another site, or whose Origin isn't the app's own address and port (HTTP 403).</p>
 <ul>
 <li><code>app/prompts/</code> holds the instructions sent to Claude, starting with <code>extraction.md</code>.</li>
 <li><code>app/status.py</code> holds the table of allowed moves and the claim function. It is the only place a</li>
 </ul>
 <p>status is written.</p>
 <ul>
-<li><code>app/jobs.py</code> runs claimed work in the background and owns the thread pool.</li>
+<li><code>app/jobs.py</code> runs claimed work in the background; <code>app/steps/line_matching.py</code> owns the thread</li>
+</ul>
+<p>pool of five.</p>
+<ul>
 <li><code>app/steps/extraction.py</code>, <code>app/steps/metadata.py</code> and <code>app/steps/line_matching.py</code> are the three</li>
 </ul>
 <p>separate pipeline steps the brief asks for.</p>

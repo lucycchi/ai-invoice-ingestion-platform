@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Form, HTTPException, Request
+from sqlalchemy import update
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.checks import current_item_id, refresh_flag
@@ -122,16 +123,22 @@ def _change_line(request: Request, invoice_id: int, line_id: int, change) -> Res
 def override(request: Request, invoice_id: int, line_id: int, catalog_item_id: str = Form(...)):
     def change(s, match):
         if catalog_item_id == "none":
+            item_id = None
+        else:
+            try:
+                item_id = int(catalog_item_id)
+            except ValueError:
+                raise _Refused(422, "Choose a catalog item or No match.")
+            in_catalog = s.query(CatalogSnapshotItem).filter_by(invoice_id=invoice_id, catalog_item_id=item_id).count()
+            if not in_catalog:
+                raise _Refused(422, "That item isn't in this invoice's catalog.")
+        if item_id == match.ai_catalog_item_id:
+            # Choosing what the AI suggested isn't an override: the line goes back to the AI's suggestion.
+            match.override_kind, match.override_catalog_item_id = "none", None
+        elif item_id is None:
             match.override_kind, match.override_catalog_item_id = "no_match", None
-            return
-        try:
-            item_id = int(catalog_item_id)
-        except ValueError:
-            raise _Refused(422, "Choose a catalog item or No match.")
-        in_catalog = s.query(CatalogSnapshotItem).filter_by(invoice_id=invoice_id, catalog_item_id=item_id).count()
-        if not in_catalog:
-            raise _Refused(422, "That item isn't in this invoice's catalog.")
-        match.override_kind, match.override_catalog_item_id = "item", item_id
+        else:
+            match.override_kind, match.override_catalog_item_id = "item", item_id
 
     return _change_line(request, invoice_id, line_id, change)
 
@@ -146,14 +153,21 @@ def undo(request: Request, invoice_id: int, line_id: int):
 
 @router.post("/invoices/{invoice_id}/shown")
 def shown(request: Request, invoice_id: int):
-    """The page reports it has shown every result; recorded once, and only after matching finished."""
+    """The page that followed matching live reports it has shown every result.
+
+    Recorded once, only after matching finished; the write only succeeds while no time is recorded yet,
+    so two reports arriving together can't overwrite the first. Answers with the updated times.
+    """
     with request.app.state.sessions() as s:
         invoice = s.get(Invoice, invoice_id)
         run = s.query(Run).filter_by(invoice_id=invoice_id, step="matching").order_by(Run.id.desc()).first()
         finished = invoice is not None and invoice.status in (Status.IN_REVIEW, Status.FINALIZED)
         if not finished or run is None or run.stored_at is None:
             return Response(status_code=409)
-        if run.shown_at is None:
-            run.shown_at = now_iso()
-            s.commit()
-    return Response(status_code=204)
+        s.execute(update(Run).where(Run.id == run.id, Run.shown_at.is_(None)).values(shown_at=now_iso()))
+        s.commit()
+        s.refresh(run)
+    return templates.TemplateResponse(request, "_matching_time.html", {
+        "stored_seconds": seconds_between(run.started_at, run.stored_at),
+        "shown_seconds": seconds_between(run.started_at, run.shown_at),
+    })

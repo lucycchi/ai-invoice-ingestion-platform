@@ -3,7 +3,7 @@
 <h1>{{ invoice.original_filename }}</h1>
 <p><span class="status">{{ status_label(invoice.status) }}</span>
   {% if reading_seconds is not none %}<span class="muted"> · Reading took {{ "%.1f"|format(reading_seconds) }} seconds</span>{% endif %}
-  {% if stored_seconds is defined and stored_seconds is not none %}<span class="muted"> · Matching took {{ "%.1f"|format(shown_seconds) ~ " seconds on screen (" if shown_seconds is not none else "" }}{{ "%.1f"|format(stored_seconds) }} seconds stored{{ ")" if shown_seconds is not none else "" }}</span>{% endif %}</p>
+  {% if stored_seconds is defined and stored_seconds is not none %}{% include "_matching_time.html" %}{% endif %}</p>
 {% if invoice.status_reason %}<div class="message">{{ invoice.status_reason }}</div>{% endif %}
 
 {% if invoice.status == "extracting" %}
@@ -39,8 +39,8 @@
 {% elif rows is defined %}
   {% set editable = invoice.status == "in_review" %}
   {% include "_review.html" %}
-  {% if invoice.status == "in_review" and matching_run and not matching_run.shown_at %}
-    <div hx-post="/invoices/{{ invoice.id }}/shown" hx-trigger="load" hx-swap="none"></div>
+  {% if from_matching and invoice.status == "in_review" and matching_run and not matching_run.shown_at %}
+    <div hx-post="/invoices/{{ invoice.id }}/shown" hx-trigger="load" hx-target="#matching-time" hx-swap="outerHTML"></div>
   {% endif %}
 {% endif %}
 {% if invoice.status == "awaiting_confirmation" and header %}{% include "_confirm.html" %}{% endif %}

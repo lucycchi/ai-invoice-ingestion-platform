@@ -1,3 +1,4 @@
+<option value="" selected>Choose an item…</option>
 <option value="none">No match</option>
 {% for item in items %}<option value="{{ item.catalog_item_id }}">{{ item.item_code }} · {{ item.description }}{% if item.unit_price %} ({{ "${:,.2f}".format(item.unit_price) }}){% endif %}</option>
 {% endfor %}

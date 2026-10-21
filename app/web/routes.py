@@ -4,7 +4,7 @@ from pathlib import Path
 
 import json
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -128,13 +128,17 @@ def progress(request: Request, invoice_id: int):
         from app.web.review import matching_progress
 
         return matching_progress(request, invoice)
+    if invoice.status in (Status.IN_REVIEW, Status.MATCHING_FAILED):
+        # Matching just ended while this page watched: the review page may report when it's on screen.
+        return HTMLResponse("", headers={"HX-Redirect": f"/invoices/{invoice_id}?from=matching"})
     if invoice.status != Status.EXTRACTING:
         return HTMLResponse("", headers={"HX-Refresh": "true"})
     return templates.TemplateResponse(request, "progress.html", {"invoice": invoice})
 
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)
-def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = None, study_id: int | None = None):
+def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = None, study_id: int | None = None,
+                 from_: str | None = Query(None, alias="from")):
     with _sessions(request)() as s:
         invoice = s.get(Invoice, invoice_id)
         if invoice is None:
@@ -164,5 +168,6 @@ def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = Non
             "warnings": json.loads(extraction.arithmetic_warnings) if extraction else [],
             "lines": lines,
             "reading_seconds": seconds_between(reading.started_at, reading.stored_at) if reading else None,
+            "from_matching": from_ == "matching",
         },
     )

@@ -42,9 +42,10 @@ def test_progress_counts(env):
     assert "HX-Refresh" not in part.headers
 
 
-def test_progress_refreshes_when_done(env):
+def test_progress_redirects_when_done(env):
     invoice_id = env.run()
-    assert env.client.get(f"/invoices/{invoice_id}/progress").headers.get("HX-Refresh") == "true"
+    response = env.client.get(f"/invoices/{invoice_id}/progress")
+    assert response.headers.get("HX-Redirect") == f"/invoices/{invoice_id}?from=matching"
 
 
 def test_review_rows(env):
@@ -131,7 +132,7 @@ def test_shown_only_after_stored(env):
         s.query(Run).filter_by(invoice_id=invoice_id, step="matching").one().stored_at = stored_at
         s.get(Invoice, invoice_id).status = "in_review"
         s.commit()
-    assert env.client.post(f"/invoices/{invoice_id}/shown").status_code == 204
+    assert env.client.post(f"/invoices/{invoice_id}/shown").status_code == 200
     first = env.matching_run(invoice_id).shown_at
     assert first
     env.client.post(f"/invoices/{invoice_id}/shown")
@@ -174,3 +175,66 @@ def test_picker_starts_on_current_item(env):
     no_match_line, _ = _line(env, invoice_id, 25)
     picker = re.search(rf'<select id="picker-{no_match_line.id}".*?</select>', page, re.S).group(0)
     assert re.findall(r'<option value="([^"]+)" selected>', picker) == ["none"]
+
+
+def test_choosing_the_ai_item_is_no_override(env):
+    invoice_id = env.run()
+    line, match = _line(env, invoice_id, 10)
+    _override(env, invoice_id, line.id, match.ai_catalog_item_id)
+    assert _line(env, invoice_id, 10)[1].override_kind == "none"
+    _override(env, invoice_id, line.id, _item_id(env, invoice_id, "PROC-ECG-Read"))
+    _override(env, invoice_id, line.id, match.ai_catalog_item_id)
+    assert _line(env, invoice_id, 10)[1].override_kind == "none"
+    assert _summary(env, invoice_id).overridden == 0
+
+
+def test_search_results_need_a_choice(env):
+    invoice_id = env.run()
+    part = env.client.get(f"/invoices/{invoice_id}/catalog?q=ecg").text
+    assert part.lstrip().startswith('<option value="" selected>Choose an item')
+    line, _ = _line(env, invoice_id, 10)
+    assert _override(env, invoice_id, line.id, "").status_code == 422
+    assert _line(env, invoice_id, 10)[1].override_kind == "none"
+
+
+def test_failed_screen_lists_every_line(env):
+    from tests.test_line_matching import _bad_for
+
+    env.claude.match = _bad_for(set(range(7, 13)), expected_answer("large_invoice"))
+    invoice_id = env.run()
+    page = unescape(env.client.get(f"/invoices/{invoice_id}").text)
+    assert page.count('class="line-row') == 27
+    assert page.count("No result yet") == 6
+    assert "Matching took" not in page
+
+
+def test_shown_recorded_only_from_live_matching(env):
+    invoice_id = env.run()
+    assert 'hx-post="/invoices/' not in env.client.get(f"/invoices/{invoice_id}").text
+    assert f'hx-post="/invoices/{invoice_id}/shown"' in env.client.get(f"/invoices/{invoice_id}?from=matching").text
+
+
+def test_shown_returns_the_updated_time(env):
+    invoice_id = env.run()
+    response = env.client.post(f"/invoices/{invoice_id}/shown")
+    assert "on screen" in response.text
+
+
+def test_concurrent_shown_reports_keep_the_first(env):
+    import threading
+
+    invoice_id = env.run()
+    barrier = threading.Barrier(4)
+
+    def report():
+        barrier.wait()
+        env.client.post(f"/invoices/{invoice_id}/shown")
+
+    threads = [threading.Thread(target=report) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    first = env.matching_run(invoice_id).shown_at
+    env.client.post(f"/invoices/{invoice_id}/shown")
+    assert env.matching_run(invoice_id).shown_at == first
