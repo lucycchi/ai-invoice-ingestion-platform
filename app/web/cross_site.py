@@ -8,6 +8,7 @@ requests; requests from tests or command-line tools send neither and are let thr
 from urllib.parse import urlsplit
 
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import PlainTextResponse
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -15,11 +16,22 @@ REFUSAL = "Refused: this request came from another website."
 
 
 class CrossSiteGuard(BaseHTTPMiddleware):
+    def __init__(self, app, allowed_hosts: list[str]):
+        super().__init__(app)
+        self.allowed_hosts = set(allowed_hosts)
+
     async def dispatch(self, request, call_next):
         if request.method not in SAFE_METHODS:
             if request.headers.get("sec-fetch-site") in ("cross-site", "same-site"):
                 return PlainTextResponse(REFUSAL, status_code=403)
             origin = request.headers.get("origin")
-            if origin and urlsplit(origin).netloc != request.headers.get("host"):
+            # Compared with the fixed list of the app's own host names, never with the request's Host.
+            if origin and urlsplit(origin).hostname not in self.allowed_hosts:
                 return PlainTextResponse(REFUSAL, status_code=403)
         return await call_next(request)
+
+
+def add_host_guards(app, allowed_hosts: list[str]) -> None:
+    """Serve only the app's own host names, and refuse cross-site posts."""
+    app.add_middleware(CrossSiteGuard, allowed_hosts=allowed_hosts)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)

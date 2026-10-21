@@ -39,3 +39,23 @@ def test_requests_without_browser_headers_allowed(client):
 
 def test_reads_never_refused(client):
     assert client.get("/", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 200
+
+
+def test_rebound_host_refused_even_for_reads(client):
+    # DNS rebinding: a hostile name that resolves to this machine. Only localhost names are served.
+    assert client.get("/", headers={"Host": "evil.example:8080"}).status_code == 400
+
+
+def test_rebound_origin_matching_host_refused(client):
+    response = client.post(
+        "/invoices/1/change-metadata",
+        headers={"Host": "evil.example:8080", "Origin": "http://evil.example:8080", "Sec-Fetch-Site": "same-origin"},
+    )
+    assert response.status_code in (400, 403)
+
+
+def test_localhost_names_allowed(client):
+    for host in ("localhost:8080", "127.0.0.1:8080"):
+        assert client.get("/", headers={"Host": host}).status_code == 200
+        response = client.post("/invoices/1/change-metadata", headers={"Host": host, "Origin": f"http://{host}"})
+        assert response.status_code != 403

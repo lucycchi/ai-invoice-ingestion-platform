@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-5-5"
     reference_api_url: str = "http://api:8000"
     data_dir: Path = Path("/data")
+    # Only these host names are served, which blocks DNS-rebinding attacks from other websites.
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
 
 
 def get_settings(env_file: str | None = ".env") -> Settings:

@@ -14,7 +14,7 @@ from app.db import make_engine, session_factory
 from app.models import Base
 from app.status import recover_interrupted
 from app.web.confirm import router as confirm_router
-from app.web.cross_site import CrossSiteGuard
+from app.web.cross_site import add_host_guards
 from app.web.routes import router
 
 
@@ -41,7 +41,7 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
 
     app = FastAPI(title="AI Invoice Ingestion Platform", lifespan=lifespan)
 
-    app.add_middleware(CrossSiteGuard)
+    add_host_guards(app, settings.allowed_hosts)
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
     app.include_router(router)
     app.include_router(confirm_router)
