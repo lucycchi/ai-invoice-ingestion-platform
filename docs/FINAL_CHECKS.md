@@ -120,7 +120,36 @@ and its findings are in [`FINAL_REVIEW.md`](FINAL_REVIEW.md).
   is small and fixed, so it was kept. A real upload adds far less than 64 KB, because that space only
   holds the file name and the form's separators.
 
+## Browser tests with Playwright
+
+The author asked for the finished UI to be checked in a real browser after the final fixes. A
+repeatable Playwright test, `tests/browser/test_ui_browser.py`, now drives Chromium through the
+running app and the real Claude. It is skipped by default, like the live tests; run it with
+`.venv/bin/pytest -m browser`. It covers:
+
+- **All four samples:** each is uploaded and read. The test checks the suggested sponsor, study and
+  site, confirms them, and checks the review summary and every line's catalog item against the answer
+  key.
+- **The study picker:** it changes the sponsor and back, and checks that the study picker stays and
+  refills. This was the high-severity browser-test problem (ISSUE-001).
+- **Reviewing and finalizing:** it searches the catalog and overrides a line, then undoes it. It
+  finalizes with the open problems stated, downloads the JSON and checks it, and checks that a
+  finalized invoice can't be changed.
+- **The not-found page:** an unknown invoice shows a page with a link back.
+- **Phone width:** at 375 pixels, no page scrolls sideways.
+- **Console errors:** any error on a page fails the test.
+
+**Result:** all 8 pass, in about two minutes, costing about 20 cents. The first run failed one check.
+The cause was the test, not the app. Opening the finalize page of a finalized invoice correctly
+returns the "can't be changed" page with status 409, and Chrome logs every 409 as a console error. The
+test now checks for console errors before that deliberate visit, and checks the 409 itself.
+
 ## Glossary
+
+- **Playwright:** a library that drives a real browser from a test, clicking and typing as a person
+  would.
+- **Console error:** an error a web page reports in the browser's developer console, such as a failed
+  request or a script crash.
 
 - **Static mode:** a security check that reads the code without running it.
 - **Published port:** a port Docker makes reachable from outside a container. Binding it to `127.0.0.1`

@@ -80,7 +80,15 @@ What to expect from each sample:
 python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # Python 3.13; or use uv
 .venv/bin/pytest              # 278 tests; free and offline: Claude and the reference API are stand-ins
 .venv/bin/pytest -m live -s   # the live tests: real Claude, the running reference API (start it first)
+.venv/bin/pytest -m browser  # browser tests: Playwright drives Chromium through the running app (docker compose up first)
 ```
+
+The **browser tests** (`tests/browser/`, about two minutes and 20 cents) click through the running app
+in a real Chromium. They upload all four samples and check the suggested sponsor, study and site and
+every line's catalog item. They change the sponsor and back, override a line and undo it, finalize and
+download the JSON. They also check the not-found page, and check that no page scrolls sideways at
+phone width. They fail on any console error. If Playwright's browser is missing, run
+`.venv/bin/python -m playwright install chromium` once.
 
 The **live tests** run all four sample PDFs through the app and check every result against
 [`tests/fixtures/expected_results.json`](tests/fixtures/expected_results.json), which was worked out from
