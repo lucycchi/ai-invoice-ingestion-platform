@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Finalize this invoice?</h1>
+{% if changed %}<div class="message" role="alert">The invoice changed since you looked. Here is the current summary.</div>{% endif %}
+<p>Open problems: <strong>{{ problems.text }}</strong>.</p>
+<p class="muted">Finalizing records these as acknowledged and locks the invoice; nothing on it can change afterwards. Open problems don't block finalizing.</p>
+<form action="/invoices/{{ invoice_id }}/finalize" method="post">
+  <input type="hidden" name="no_match" value="{{ problems.no_match }}">
+  <input type="hidden" name="price_flags" value="{{ problems.price_flags }}">
+  <input type="hidden" name="arithmetic_warnings" value="{{ problems.arithmetic_warnings }}">
+  <button type="submit">Confirm and finalize</button>
+  <a href="/invoices/{{ invoice_id }}">Back to review</a>
+</form>
+{% endblock %}

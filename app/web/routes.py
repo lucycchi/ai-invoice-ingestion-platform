@@ -169,5 +169,7 @@ def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = Non
             "lines": lines,
             "reading_seconds": seconds_between(reading.started_at, reading.stored_at) if reading else None,
             "from_matching": from_ == "matching",
+            "finalized": {"text": json.loads(invoice.finalize_summary)["text"], "at": invoice.finalized_at}
+            if invoice.finalize_summary else None,
         },
     )

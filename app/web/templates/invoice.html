@@ -44,5 +44,10 @@
   {% endif %}
 {% endif %}
 {% if invoice.status == "awaiting_confirmation" and header %}{% include "_confirm.html" %}{% endif %}
+{% if invoice.status == "in_review" %}<p><a class="button" href="/invoices/{{ invoice.id }}/finalize">Finalize</a></p>{% endif %}
 {% if invoice.status in ("matching_failed", "in_review") %}<p><a href="/invoices/{{ invoice.id }}/change-metadata">Change the sponsor, study or site</a></p>{% endif %}
+{% if invoice.status == "finalized" and finalized %}
+  <div class="note">Finalized {{ finalized.at }} with open problems acknowledged: <strong>{{ finalized.text }}</strong>.</div>
+  <p><a class="button" href="/invoices/{{ invoice.id }}/export.json">Download JSON</a></p>
+{% endif %}
 {% endblock %}
