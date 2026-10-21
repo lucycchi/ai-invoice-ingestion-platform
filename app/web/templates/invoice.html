@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ invoice.original_filename }}</h1>
-<p><span class="status">{{ status_label(invoice.status) }}</span></p>
+<p><span class="status">{{ status_label(invoice.status) }}</span>
+  {% if reading_seconds is not none %}<span class="muted"> · Reading took {{ "%.1f"|format(reading_seconds) }} seconds</span>{% endif %}</p>
 {% if invoice.status_reason %}<div class="message">{{ invoice.status_reason }}</div>{% endif %}
+
+{% if invoice.status == "extracting" %}
+  {% include "progress.html" %}
+{% elif invoice.status == "extraction_failed" %}
+  <form action="/invoices/{{ invoice.id }}/retry" method="post"><button type="submit">Retry</button></form>
+{% endif %}
+
+{% block reading %}
+{% if header %}
+<h2>Invoice {{ header.invoice_number or "(no number printed)" }}{% if header.invoice_date %} · {{ header.invoice_date }}{% endif %}</h2>
+{% if warnings %}
+  {% for w in warnings %}<div class="note">{{ w }}</div>{% endfor %}
+{% else %}
+  <p class="muted">The arithmetic checks passed.</p>
+{% endif %}
+<table>
+  <thead><tr><th>#</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+  {% for line in lines %}
+    <tr><td>{{ line.position }}</td><td>{{ line.description or "" }}</td>
+      <td class="num">{{ "%g"|format(line.quantity) if line.quantity is not none else "—" }}</td>
+      <td class="num">{{ "${:,.2f}".format(line.unit_price) if line.unit_price is not none else "—" }}</td>
+      <td class="num">{{ "${:,.2f}".format(line.amount) if line.amount is not none else "—" }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
 {% endblock %}

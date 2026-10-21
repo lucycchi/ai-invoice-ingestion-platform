@@ -2,14 +2,18 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+import json
+
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
-from app.clock import now_iso
-from app.models import Invoice
-from app.status import Status
+from app.clock import now_iso, seconds_between
+from app.jobs import start
+from app.models import Extraction, Invoice, LineItem, Run
+from app.status import Status, StatusConflict, claim
+from app.steps.extraction import run_extraction
 from app.uploads import MAX_FILE_BYTES, UploadRejected, check_upload, store
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -36,13 +40,26 @@ def _sessions(request: Request):
 def upload_page(request: Request, message: str | None = None, status_code: int = 200):
     with _sessions(request)() as s:
         invoices = s.scalars(select(Invoice).order_by(Invoice.id.desc())).all()
+        numbers = {
+            e.invoice_id: json.loads(e.header).get("invoice_number") for e in s.scalars(select(Extraction))
+        }
     return templates.TemplateResponse(
-        request, "upload.html", {"invoices": invoices, "message": message}, status_code=status_code
+        request,
+        "upload.html",
+        {"invoices": invoices, "numbers": numbers, "message": message},
+        status_code=status_code,
+    )
+
+
+def conflict_page(request: Request, invoice_id: int, current: Status | None):
+    label = STATUS_LABELS.get(current, "unknown") if current else "unknown"
+    return templates.TemplateResponse(
+        request, "conflict.html", {"invoice_id": invoice_id, "label": label}, status_code=409
     )
 
 
 @router.post("/invoices")
-async def upload(request: Request, file: list[UploadFile] = File(...)):
+async def upload(request: Request, background_tasks: BackgroundTasks, file: list[UploadFile] = File(...)):
     if len(file) != 1:
         return upload_page(request, message="Please upload one file at a time.", status_code=422)
     file = file[0]
@@ -64,13 +81,52 @@ async def upload(request: Request, file: list[UploadFile] = File(...)):
         s.add(invoice)
         s.commit()
         invoice_id = invoice.id
+    start(background_tasks, request.app, invoice_id, run_extraction)
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@router.post("/invoices/{invoice_id}/retry")
+def retry(request: Request, invoice_id: int, background_tasks: BackgroundTasks):
+    with _sessions(request)() as s:
+        try:
+            claim(s, invoice_id, expected={Status.EXTRACTION_FAILED}, new=Status.EXTRACTING)
+        except StatusConflict as conflict:
+            return conflict_page(request, invoice_id, conflict.current)
+        s.commit()
+    start(background_tasks, request.app, invoice_id, run_extraction)
+    return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@router.get("/invoices/{invoice_id}/progress", response_class=HTMLResponse)
+def progress(request: Request, invoice_id: int):
+    with _sessions(request)() as s:
+        invoice = s.get(Invoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(404, "There's no invoice with that number.")
+    if invoice.status != Status.EXTRACTING:
+        return HTMLResponse("", headers={"HX-Refresh": "true"})
+    return templates.TemplateResponse(request, "progress.html", {"invoice": invoice})
 
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)
 def invoice_page(request: Request, invoice_id: int):
     with _sessions(request)() as s:
         invoice = s.get(Invoice, invoice_id)
-    if invoice is None:
-        raise HTTPException(404, "There's no invoice with that number.")
-    return templates.TemplateResponse(request, "invoice.html", {"invoice": invoice})
+        if invoice is None:
+            raise HTTPException(404, "There's no invoice with that number.")
+        extraction = s.query(Extraction).filter_by(invoice_id=invoice_id).first()
+        lines = s.query(LineItem).filter_by(invoice_id=invoice_id).order_by(LineItem.position).all()
+        runs = s.query(Run).filter_by(invoice_id=invoice_id).order_by(Run.id).all()
+    reading = next((r for r in reversed(runs) if r.step == "extraction"), None)
+    return templates.TemplateResponse(
+        request,
+        "invoice.html",
+        {
+            "invoice": invoice,
+            "header": json.loads(extraction.header) if extraction else None,
+            "extraction": extraction,
+            "warnings": json.loads(extraction.arithmetic_warnings) if extraction else [],
+            "lines": lines,
+            "reading_seconds": seconds_between(reading.started_at, reading.stored_at) if reading else None,
+        },
+    )

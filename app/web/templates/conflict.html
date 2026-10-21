@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>That can't be done right now</h1>
+<div class="note">This invoice is currently: <strong>{{ label }}</strong>. The page you came from may be out of date.</div>
+<p><a class="button" href="/invoices/{{ invoice_id }}">Go to the invoice</a></p>
+{% endblock %}

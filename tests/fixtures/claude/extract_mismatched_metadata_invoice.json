@@ -1,0 +1,62 @@
+{
+  "is_invoice": true,
+  "header": {
+    "invoice_number": "INV-2024-077",
+    "invoice_date": "2024-07-30",
+    "site_name": "Prairie Clinical Research",
+    "site_street": "1200 Prairie View Road",
+    "site_city": "Kansas City",
+    "site_state": "MO",
+    "site_postal_code": "64108",
+    "site_country": "USA",
+    "pi_name": "Dr. Riley H. Foster",
+    "sponsor_name": "Northwind Pharmaceuticals Inc.",
+    "study_name": "VERITAS Phase 2 Study",
+    "protocol_number": "NWD-VER-2024-002",
+    "printed_total": "$3,220.00"
+  },
+  "lines": [
+    {
+      "description": "Site Admin Fee",
+      "quantity": "1",
+      "unit_price": "$325.00",
+      "amount": "$325.00"
+    },
+    {
+      "description": "Screening",
+      "quantity": "2",
+      "unit_price": "$425.00",
+      "amount": "$850.00"
+    },
+    {
+      "description": "Baseline",
+      "quantity": "2",
+      "unit_price": "$500.00",
+      "amount": "$1,000.00"
+    },
+    {
+      "description": "Month 3 Follow-up",
+      "quantity": "1",
+      "unit_price": "$475.00",
+      "amount": "$475.00"
+    },
+    {
+      "description": "ECG",
+      "quantity": "3",
+      "unit_price": "$80.00",
+      "amount": "$240.00"
+    },
+    {
+      "description": "CBC",
+      "quantity": "2",
+      "unit_price": "$90.00",
+      "amount": "$180.00"
+    },
+    {
+      "description": "Lipid Profile",
+      "quantity": "2",
+      "unit_price": "$75.00",
+      "amount": "$150.00"
+    }
+  ]
+}

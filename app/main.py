@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.clients.claude import ClaudeClient
 from app.clients.reference_api import ReferenceClient
 from app.config import Settings
 from app.db import make_engine, session_factory
@@ -29,7 +30,9 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
         with app.state.sessions() as session:
             recover_interrupted(session)
             session.commit()
-        app.state.claude = claude
+        app.state.claude = claude or ClaudeClient(
+            settings.anthropic_api_key.get_secret_value(), settings.anthropic_model
+        )
         app.state.reference = reference or ReferenceClient(settings.reference_api_url)
         yield
         engine.dispose()

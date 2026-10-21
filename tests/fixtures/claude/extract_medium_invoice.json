@@ -1,0 +1,86 @@
+{
+  "is_invoice": true,
+  "header": {
+    "invoice_number": "INV-2024-042",
+    "invoice_date": "2024-06-20",
+    "site_name": "Harborview Medical Institute",
+    "site_street": "456 Lake Shore Drive",
+    "site_city": "Chicago",
+    "site_state": "IL",
+    "site_postal_code": "60611",
+    "site_country": "USA",
+    "pi_name": "Dr. Jordan Blake",
+    "sponsor_name": "Northwind Pharma",
+    "study_name": "LUMIN-2024",
+    "protocol_number": "NWD-LUM-2024-001",
+    "printed_total": "$7,145.00"
+  },
+  "lines": [
+    {
+      "description": "Site Administration Fee",
+      "quantity": "1",
+      "unit_price": "$350.00",
+      "amount": "$350.00"
+    },
+    {
+      "description": "Screening Visit",
+      "quantity": "3",
+      "unit_price": "$450.00",
+      "amount": "$1,350.00"
+    },
+    {
+      "description": "Baseline Assessment",
+      "quantity": "2",
+      "unit_price": "$525.00",
+      "amount": "$1,050.00"
+    },
+    {
+      "description": "Week 4 Follow-up",
+      "quantity": "2",
+      "unit_price": "$475.00",
+      "amount": "$950.00"
+    },
+    {
+      "description": "Week 8 Follow-up",
+      "quantity": "2",
+      "unit_price": "$475.00",
+      "amount": "$950.00"
+    },
+    {
+      "description": "12-Lead ECG",
+      "quantity": "5",
+      "unit_price": "$85.00",
+      "amount": "$425.00"
+    },
+    {
+      "description": "CBC",
+      "quantity": "4",
+      "unit_price": "$95.00",
+      "amount": "$380.00"
+    },
+    {
+      "description": "CMP",
+      "quantity": "4",
+      "unit_price": "$110.00",
+      "amount": "$440.00"
+    },
+    {
+      "description": "Drug Infusion",
+      "quantity": "2",
+      "unit_price": "$200.00",
+      "amount": "$400.00"
+    },
+    {
+      "description": "PK Blood Draw",
+      "quantity": "4",
+      "unit_price": "$75.00",
+      "amount": "$300.00"
+    },
+    {
+      "description": "IRB/Ethics Fees",
+      "quantity": "1",
+      "unit_price": "$550.00",
+      "amount": "$550.00"
+    }
+  ]
+}

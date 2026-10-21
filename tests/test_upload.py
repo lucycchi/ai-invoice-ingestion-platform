@@ -35,7 +35,11 @@ def _encrypted_pdf() -> bytes:
 
 @pytest.fixture
 def client(settings):
-    with TestClient(create_app(settings), follow_redirects=False) as c:
+    from tests.fakes import FakeClaude, FakeReference
+    from tests.test_extraction_step import saved_extraction
+
+    claude = FakeClaude(extraction=saved_extraction("simple_invoice"))
+    with TestClient(create_app(settings, claude=claude, reference=FakeReference()), follow_redirects=False) as c:
         yield c
 
 
@@ -94,7 +98,7 @@ def test_accepts_sample(client, settings):
     assert response.status_code == 303
     assert response.headers["location"] == "/invoices/1"
     [invoice] = _invoices(client)
-    assert invoice.status == "extracting"
+    assert invoice.status == "awaiting_confirmation"  # read by the stand-in in the background
     assert invoice.original_filename == "simple-invoice.pdf"
     assert invoice.media_type == "application/pdf"
     stored = settings.data_dir / "uploads" / invoice.stored_path
@@ -108,7 +112,7 @@ def test_list_newest_first(client):
     page = client.get("/").text
     assert page.index("second.pdf") < page.index("first.pdf")
     assert 'href="/invoices/1"' in page and 'href="/invoices/2"' in page
-    assert "extracting" in page.lower() or "reading" in page.lower()
+    assert page.count("Waiting for confirmation") == 2
 
 
 def test_escapes_file_name(client):

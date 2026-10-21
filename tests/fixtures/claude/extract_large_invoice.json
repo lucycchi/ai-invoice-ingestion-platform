@@ -1,0 +1,182 @@
+{
+  "is_invoice": true,
+  "header": {
+    "invoice_number": "INV-2024-108",
+    "invoice_date": "2024-09-12",
+    "site_name": "Highland Ridge Hospital - Research Unit",
+    "site_street": "789 Mountain View Blvd",
+    "site_city": "Denver",
+    "site_state": "CO",
+    "site_postal_code": "80202",
+    "site_country": "USA",
+    "pi_name": "Dr. Taylor Reed",
+    "sponsor_name": "Northwind Pharma",
+    "study_name": "LUMIN-2024",
+    "protocol_number": "NWD-LUM-2024-001",
+    "printed_total": "$29,191.00"
+  },
+  "lines": [
+    {
+      "description": "Site Admin",
+      "quantity": "1",
+      "unit_price": "$350.00",
+      "amount": "$350.00"
+    },
+    {
+      "description": "Screening Visit",
+      "quantity": "5",
+      "unit_price": "$450.00",
+      "amount": "$2,250.00"
+    },
+    {
+      "description": "Baseline Visit",
+      "quantity": "4",
+      "unit_price": "$525.00",
+      "amount": "$2,100.00"
+    },
+    {
+      "description": "Wk 4 Visit",
+      "quantity": "4",
+      "unit_price": "$475.00",
+      "amount": "$1,900.00"
+    },
+    {
+      "description": "Wk 8 Visit",
+      "quantity": "4",
+      "unit_price": "$475.00",
+      "amount": "$1,900.00"
+    },
+    {
+      "description": "Week 12 Visit",
+      "quantity": "4",
+      "unit_price": "$500.00",
+      "amount": "$2,000.00"
+    },
+    {
+      "description": "Week 16 Visit",
+      "quantity": "4",
+      "unit_price": "$500.00",
+      "amount": "$2,000.00"
+    },
+    {
+      "description": "Wk 24 Visit",
+      "quantity": "3",
+      "unit_price": "$525.00",
+      "amount": "$1,575.00"
+    },
+    {
+      "description": "End of Study Visit",
+      "quantity": "2",
+      "unit_price": "$550.00",
+      "amount": "$1,100.00"
+    },
+    {
+      "description": "ECG",
+      "quantity": "12",
+      "unit_price": "$85.00",
+      "amount": "$1,020.00"
+    },
+    {
+      "description": "Vitals",
+      "quantity": "20",
+      "unit_price": "$45.00",
+      "amount": "$900.00"
+    },
+    {
+      "description": "Physical Exam",
+      "quantity": "10",
+      "unit_price": "$120.00",
+      "amount": "$1,200.00"
+    },
+    {
+      "description": "IV Drug Administration",
+      "quantity": "8",
+      "unit_price": "$200.00",
+      "amount": "$1,600.00"
+    },
+    {
+      "description": "Pharmacokinetic Sampling",
+      "quantity": "16",
+      "unit_price": "$75.00",
+      "amount": "$1,200.00"
+    },
+    {
+      "description": "CBC w/ Differential",
+      "quantity": "10",
+      "unit_price": "$95.00",
+      "amount": "$950.00"
+    },
+    {
+      "description": "Comprehensive Metabolic Panel",
+      "quantity": "10",
+      "unit_price": "$110.00",
+      "amount": "$1,100.00"
+    },
+    {
+      "description": "UA",
+      "quantity": "8",
+      "unit_price": "$55.00",
+      "amount": "$440.00"
+    },
+    {
+      "description": "Hepatic Function Panel",
+      "quantity": "8",
+      "unit_price": "$88.00",
+      "amount": "$704.00"
+    },
+    {
+      "description": "Lipid Panel",
+      "quantity": "6",
+      "unit_price": "$78.00",
+      "amount": "$468.00"
+    },
+    {
+      "description": "CT Scan - Chest/Abdomen",
+      "quantity": "2",
+      "unit_price": "$475.00",
+      "amount": "$950.00"
+    },
+    {
+      "description": "IRB Annual Maintenance",
+      "quantity": "1",
+      "unit_price": "$500.00",
+      "amount": "$500.00"
+    },
+    {
+      "description": "Drug Shipping (cold chain)",
+      "quantity": "3",
+      "unit_price": "$125.00",
+      "amount": "$375.00"
+    },
+    {
+      "description": "Lab Supplies",
+      "quantity": "10",
+      "unit_price": "$42.00",
+      "amount": "$420.00"
+    },
+    {
+      "description": "Sample Transport",
+      "quantity": "8",
+      "unit_price": "$58.00",
+      "amount": "$464.00"
+    },
+    {
+      "description": "Parking Reimbursement",
+      "quantity": "15",
+      "unit_price": "$25.00",
+      "amount": "$375.00"
+    },
+    {
+      "description": "Patient Stipend",
+      "quantity": "12",
+      "unit_price": "$75.00",
+      "amount": "$900.00"
+    },
+    {
+      "description": "Translator Services",
+      "quantity": "3",
+      "unit_price": "$150.00",
+      "amount": "$450.00"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "is_invoice": true,
+  "header": {
+    "invoice_number": "INV-2024-001",
+    "invoice_date": "2024-03-15",
+    "site_name": "Willow Creek Clinical Research Center",
+    "site_street": "123 Research Way",
+    "site_city": "Portland",
+    "site_state": "OR",
+    "site_postal_code": "97201",
+    "site_country": "USA",
+    "pi_name": "Dr. Alex Morgan",
+    "sponsor_name": "Contoso Therapeutics",
+    "study_name": "CATALYST Trial",
+    "protocol_number": "CON-CAT-2024-101",
+    "printed_total": "$2,230.00"
+  },
+  "lines": [
+    {
+      "description": "Site Management Fee",
+      "quantity": "1",
+      "unit_price": "$400.00",
+      "amount": "$400.00"
+    },
+    {
+      "description": "Screening Visit",
+      "quantity": "2",
+      "unit_price": "$480.00",
+      "amount": "$960.00"
+    },
+    {
+      "description": "Baseline Visit",
+      "quantity": "1",
+      "unit_price": "$550.00",
+      "amount": "$550.00"
+    },
+    {
+      "description": "Complete Blood Count",
+      "quantity": "1",
+      "unit_price": "$95.00",
+      "amount": "$95.00"
+    },
+    {
+      "description": "IV Infusion Administration",
+      "quantity": "1",
+      "unit_price": "$225.00",
+      "amount": "$225.00"
+    }
+  ]
+}

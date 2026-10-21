@@ -79,6 +79,7 @@ class FakeClaude:
     def __init__(self, extraction=None, match=None, shared_tokens=100, delay=0.0):
         import threading
 
+        self.model = "claude-opus-5-5"
         self.extraction = extraction
         self.match = match
         self.shared_tokens = shared_tokens
