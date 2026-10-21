@@ -3,7 +3,7 @@
 import json
 
 from app.checks import arithmetic_warnings
-from app.clients.claude import ClaudeFailed
+from app.clients.claude import ClaudeFailed, Usage
 from app.clients.reference_api import ReferenceUnavailable, load_reference_data
 from app.clock import now_iso
 from app.models import Extraction, Invoice, LineItem, MetadataSuggestion, Run
@@ -30,9 +30,10 @@ def run_extraction(app, invoice_id: int) -> None:
         already_read = s.query(Extraction).filter_by(invoice_id=invoice_id).first() is not None
         stored_path = app.state.settings.data_dir / "uploads" / invoice.stored_path
         media_type = invoice.media_type
-        # The first reading is timed from the upload; a Retry is timed from when it was asked for.
-        first_attempt = s.query(Run).filter_by(invoice_id=invoice_id, step="extraction").count() == 0
-        started_at = invoice.uploaded_at if first_attempt else now_iso()
+        # The upload or Retry that asked for this reading opened its run with the time of the request.
+        open_run = (s.query(Run).filter_by(invoice_id=invoice_id, step="extraction", outcome=None)
+                    .order_by(Run.id.desc()).first())
+        started_at = open_run.started_at if open_run else now_iso()
 
     if not already_read:
         data = stored_path.read_bytes()
@@ -53,6 +54,10 @@ def run_extraction(app, invoice_id: int) -> None:
             _store(s, invoice_id, answer, app.state.claude.model)
             s.commit()
 
+    if already_read:  # a Retry after the reading was saved reruns only the suggestions
+        with sessions() as s:
+            _record_run(s, invoice_id, started_at, Usage(), "succeeded: suggestions only")
+            s.commit()
     try:
         data = load_reference_data(app.state.reference)
     except ReferenceUnavailable as down:
@@ -118,16 +123,15 @@ def _store(s, invoice_id: int, answer, model: str) -> None:
 
 
 def _record_run(s, invoice_id: int, started_at: str, usage, outcome: str) -> None:
-    s.add(
-        Run(
-            invoice_id=invoice_id,
-            step="extraction",
-            started_at=started_at,
-            stored_at=now_iso(),
-            claude_requests=usage.requests,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cache_read_tokens=usage.cache_read_tokens,
-            outcome=outcome,
-        )
-    )
+    """Complete the reading's open run (opened by the upload or Retry), or add one if none is open."""
+    run = (s.query(Run).filter_by(invoice_id=invoice_id, step="extraction", outcome=None)
+           .order_by(Run.id.desc()).first())
+    if run is None:
+        run = Run(invoice_id=invoice_id, step="extraction", started_at=started_at)
+        s.add(run)
+    run.stored_at = now_iso()
+    run.claude_requests = usage.requests
+    run.input_tokens = usage.input_tokens
+    run.output_tokens = usage.output_tokens
+    run.cache_read_tokens = usage.cache_read_tokens
+    run.outcome = outcome

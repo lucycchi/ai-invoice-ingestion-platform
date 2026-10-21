@@ -89,6 +89,8 @@ async def upload(request: Request, background_tasks: BackgroundTasks, file: list
             uploaded_at=now_iso(),
         )
         s.add(invoice)
+        s.flush()
+        s.add(Run(invoice_id=invoice.id, step="extraction", started_at=invoice.uploaded_at))
         s.commit()
         invoice_id = invoice.id
     start(background_tasks, request.app, invoice_id, run_extraction)
@@ -110,6 +112,7 @@ def retry(request: Request, invoice_id: int, background_tasks: BackgroundTasks):
                 step = run_matching
             else:
                 claim(s, invoice_id, expected={Status.EXTRACTION_FAILED}, new=Status.EXTRACTING)
+                s.add(Run(invoice_id=invoice_id, step="extraction", started_at=now_iso()))
                 step = run_extraction
         except StatusConflict as conflict:
             return conflict_page(request, invoice_id, conflict.current)

@@ -208,3 +208,46 @@ def test_retry_timing_starts_at_retry(settings):
         page = client.get(f"/invoices/{invoice_id}").text
     assert runs[-1].started_at > "2025"
     assert "Reading took 0." in page
+
+
+# Regression: ISSUE-003 — a Retry after a reading cut off by a restart was timed from the upload
+# Found by /qa on 2026-10-20
+# Report: .gstack/qa-reports/run-20261021T023335Z/qa-report-localhost-2026-10-20.md
+def test_retry_after_restart_is_timed_from_the_retry(settings):
+    claude = FakeClaude(extraction=saved_extraction("simple_invoice"))
+    with _app(settings, claude) as client:
+        invoice_id = _upload(client)
+        with client.app.state.sessions() as s:  # as if the reading was cut off by a restart: nothing recorded
+            from app.models import MetadataSuggestion
+
+            s.query(Run).filter_by(invoice_id=invoice_id).delete()
+            s.query(MetadataSuggestion).filter_by(invoice_id=invoice_id).delete()
+            s.query(LineItem).filter_by(invoice_id=invoice_id).delete()
+            s.query(Extraction).filter_by(invoice_id=invoice_id).delete()
+            invoice = s.get(Invoice, invoice_id)
+            invoice.status, invoice.uploaded_at = "extraction_failed", "2020-01-01T00:00:00.000Z"
+            s.commit()
+        client.post(f"/invoices/{invoice_id}/retry")
+        runs = _get(client, Run, invoice_id)
+    assert len(runs) == 1 and runs[0].started_at > "2025" and runs[0].outcome == "succeeded"
+
+
+def test_upload_records_the_reading_start(settings):
+    with _app(settings, FakeClaude(extraction=saved_extraction("simple_invoice"))) as client:
+        invoice_id = _upload(client)
+        [run] = _get(client, Run, invoice_id)
+        invoice = _get(client, Invoice, invoice_id)
+    assert run.started_at == invoice.uploaded_at
+
+
+def test_suggestions_only_retry_closes_its_run(settings):
+    claude = FakeClaude(extraction=saved_extraction("simple_invoice"))
+    reference = FakeReference()
+    reference.down = True
+    with _app(settings, claude, reference) as client:
+        invoice_id = _upload(client)
+        reference.down = False
+        client.post(f"/invoices/{invoice_id}/retry")
+        runs = _get(client, Run, invoice_id)
+    assert [r.outcome for r in runs] == ["succeeded", "succeeded: suggestions only"]
+    assert all(r.stored_at for r in runs)
