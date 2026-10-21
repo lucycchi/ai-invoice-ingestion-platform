@@ -1,6 +1,7 @@
 """Finalizing with acknowledged open problems, and the JSON download."""
 
 import json
+import re
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -81,5 +82,11 @@ def export(request: Request, invoice_id: int):
         if invoice is None or invoice.status != Status.FINALIZED:
             return conflict_page(request, invoice_id, Status(invoice.status) if invoice else None)
         data = build_export(s, invoice_id)
-    name = (data["invoice_number"] or f"invoice-{invoice_id}").replace("/", "-")
-    return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="{name}.json"'})
+    return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="{download_name(data, invoice_id)}"'})
+
+
+def download_name(data: dict, invoice_id: int) -> str:
+    """A safe file name: the invoice number came from an untrusted document, so only letters, digits,
+    dot, dash and underscore are kept (no quotes or line breaks can reach the header)."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", data["invoice_number"] or "").strip("-.")[:100]
+    return f"{cleaned or f'invoice-{invoice_id}'}.json"

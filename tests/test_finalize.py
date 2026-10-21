@@ -169,3 +169,27 @@ def test_key_nowhere(env):
         for table in inspect(engine).get_table_names():
             for row in s.execute(text(f"SELECT * FROM {table}")):
                 assert "SECRET123" not in " ".join(str(v) for v in row), table
+
+
+def test_download_name_is_cleaned(env):
+    from tests.test_extraction_step import saved_extraction
+
+    hostile = saved_extraction("large_invoice")
+    hostile.header.invoice_number = 'INV"; evil=1\r\nX-Injected: yes/../../x'
+    invoice_id = env.run(extraction=hostile)
+    _finalize(env, invoice_id, 3, 1)
+    response = env.client.get(f"/invoices/{invoice_id}/export.json")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="INV-evil-1-X-Injected-yes-..-..-x.json"'
+    assert "x-injected" not in {k.lower() for k in response.headers}
+
+
+def test_download_name_falls_back(env):
+    from tests.test_extraction_step import saved_extraction
+
+    blank = saved_extraction("large_invoice")
+    blank.header.invoice_number = '"\r\n'
+    invoice_id = env.run(extraction=blank)
+    _finalize(env, invoice_id, 3, 1)
+    assert env.client.get(f"/invoices/{invoice_id}/export.json").headers["content-disposition"] == (
+        f'attachment; filename="invoice-{invoice_id}.json"')
