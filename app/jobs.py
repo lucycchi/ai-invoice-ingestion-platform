@@ -2,6 +2,7 @@
 
 import logging
 
+from app.logs import log_error
 from app.status import fail
 
 log = logging.getLogger(__name__)
@@ -12,12 +13,12 @@ def run_guarded(session_factory, invoice_id: int, job) -> None:
     """Run `job`; any error it doesn't handle itself moves the invoice to its failure status."""
     try:
         job()
-    except FileNotFoundError:
-        log.exception("Stored file missing for invoice %s", invoice_id)
+    except FileNotFoundError as err:
+        log_error(log, "Stored file missing", invoice_id, err)
         _fail(session_factory, invoice_id, MISSING_FILE)
     except Exception as err:
-        log.exception("Unexpected error in background work for invoice %s", invoice_id)
-        # Only the error's type: its text could hold invoice content.
+        # Only the error's type, in the log and on the page: its text could hold invoice content.
+        log_error(log, "Unexpected error in background work", invoice_id, err)
         _fail(session_factory, invoice_id, f"Unexpected error ({type(err).__name__}); details are in the app log")
 
 

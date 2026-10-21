@@ -78,3 +78,24 @@ def test_real_reference_client_built_from_setting(settings):
         reference = client.app.state.reference
     assert isinstance(reference, ReferenceClient)
     assert reference.base_url == "http://example-ref:9000"
+
+
+def test_every_published_port_is_localhost_only():
+    """The provided database's password is public, so no service may be reachable from the network."""
+    import re
+
+    from tests.conftest import REPO_ROOT
+
+    compose = (REPO_ROOT / "docker-compose.yml").read_text()
+    ports = re.findall(r'^\s*-\s*"([\d.:]+)"\s*$', compose, flags=re.MULTILINE)
+    assert ports, "expected published ports in docker-compose.yml"
+    assert all(port.startswith("127.0.0.1:") for port in ports), ports
+
+
+def test_settings_example_lists_every_setting():
+    from app.config import Settings
+    from tests.conftest import REPO_ROOT
+
+    example = (REPO_ROOT / ".env.example").read_text()
+    for name in Settings.model_fields:
+        assert f"\n{name.upper()}=" in example, name

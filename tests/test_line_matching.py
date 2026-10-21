@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.clients.claude import MIN_CACHEABLE_TOKENS, ClaudeFailed, Usage
+from app.clients.claude import ClaudeFailed, Usage, min_cacheable_tokens
 from app.main import create_app
 from app.models import CatalogSnapshotItem, Invoice, LineItem, LineMatch, Run
 from app.schemas import ExtractedLine, ExtractionAnswer, GroupAnswer, LineResult
@@ -13,6 +13,7 @@ from tests.conftest import REPO_ROOT
 from tests.fakes import FakeClaude, FakeReference
 from tests.test_extraction_step import saved_extraction
 
+MIN_CACHEABLE_TOKENS = min_cacheable_tokens("claude-opus-5-5")  # the default model
 EXPECTED = json.loads((Path(__file__).parent / "fixtures" / "expected_results.json").read_text())
 CONFIRM = {"simple_invoice": (2, 3, 1), "medium_invoice": (1, 1, 2), "large_invoice": (1, 1, 3),
            "mismatched_metadata_invoice": (1, 2, 6)}
@@ -176,6 +177,16 @@ def test_no_warm_when_short(env):
     assert not env.matching_run(invoice_id).cache_applied
 
 
+def test_warm_threshold_follows_the_configured_model(settings):
+    settings.anthropic_model = "claude-opus-4-6"  # caches only from 4,096 tokens
+    claude = FakeClaude(match=expected_answer("large_invoice"))
+    with TestClient(create_app(settings, claude=claude, reference=FakeReference()), follow_redirects=False) as client:
+        env = Env(client, claude, None)
+        claude.shared_tokens = 1000
+        invoice_id = env.run()
+        assert not env.matching_run(invoice_id).cache_applied
+
+
 # Cycle 4: at most five at once
 
 def test_at_most_five_at_once(env):
@@ -309,12 +320,12 @@ def test_failed_warm_up_not_reported_as_cached(env):
     assert not env.matching_run(invoice_id).cache_applied
 
 
-def test_unexpected_worker_error_still_records_the_run(env):
+def test_unexpected_worker_error_still_records_the_run(env, caplog):
     base = expected_answer("large_invoice")
 
     def match(number, lines):
         if lines[0]["position"] == 13:
-            return RuntimeError("database is locked")
+            return RuntimeError("secret invoice text")
         return base(number, lines)
 
     env.claude.match = match
@@ -323,6 +334,7 @@ def test_unexpected_worker_error_still_records_the_run(env):
     assert run.claude_requests == 4 and run.outcome.startswith("failed")
     invoice = env.invoice(invoice_id)
     assert invoice.status == "matching_failed" and "Unexpected error (RuntimeError)" in invoice.status_reason
+    assert "RuntimeError" in caplog.text and "secret invoice text" not in caplog.text
 
 
 def test_failed_run_has_no_stored_time(env):

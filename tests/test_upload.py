@@ -140,3 +140,24 @@ def test_accepts_restriction_only_pdf(client):
     buffer = io.BytesIO()
     writer.write(buffer)
     assert _upload(client, buffer.getvalue(), "restricted.pdf").status_code == 303
+
+
+def test_unknown_invoice_page_is_html(client):
+    response = client.get("/invoices/99")
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("text/html")
+    assert "no invoice with that number." in response.text
+    assert 'href="/"' in response.text
+
+
+def test_file_removed_when_saving_the_invoice_fails(settings, monkeypatch):
+    import app.web.routes as routes
+
+    def broken():
+        raise RuntimeError("database is down")
+
+    monkeypatch.setattr(routes, "now_iso", broken)
+    with TestClient(create_app(settings), raise_server_exceptions=False) as c:
+        response = c.post("/invoices", files={"file": ("a.pdf", _pdf(1))})
+    assert response.status_code == 500
+    assert list((settings.data_dir / "uploads").iterdir()) == []

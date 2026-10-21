@@ -8,9 +8,10 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.clients.claude import MIN_CACHEABLE_TOKENS, PROMPTS, ClaudeFailed, SharedPrompt, Usage
+from app.clients.claude import PROMPTS, ClaudeFailed, SharedPrompt, Usage, min_cacheable_tokens
 from app.checks import price_flag
 from app.clients.reference_api import ReferenceUnavailable
+from app.logs import log_error
 from app.clock import now_iso
 from app.models import CatalogSnapshotItem, Invoice, LineItem, LineMatch, Run
 from app.schemas import GroupAnswer, LineResult
@@ -138,7 +139,7 @@ def run_matching(app, invoice_id: int) -> None:
                 tally.unusable += len(to_send)
             return True
         except Exception as err:  # e.g. a database lock: recorded so the run still gets its counts
-            log.exception("Unexpected error matching a group for invoice %s", invoice_id)
+            log_error(log, "Unexpected error matching a group", invoice_id, err)
             with tally.lock:
                 tally.errors.append(f"Unexpected error ({type(err).__name__}); details are in the app log")
             return False
@@ -150,7 +151,7 @@ def run_matching(app, invoice_id: int) -> None:
         except Exception:  # counting is only an optimisation; without it, nothing is warmed
             shared_tokens = 0
         rest = groups
-        if shared_tokens >= MIN_CACHEABLE_TOKENS and len(groups) > 1:
+        if shared_tokens >= min_cacheable_tokens(app.state.settings.anthropic_model) and len(groups) > 1:
             # The first group writes the cache before the others read it; it only counts if it worked.
             cache_applied = work(groups[0])
             rest = groups[1:]

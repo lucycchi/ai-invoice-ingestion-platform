@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException
 
 from app.clients.claude import ClaudeClient
 from app.clients.reference_api import ReferenceClient
@@ -17,7 +19,8 @@ from app.web.confirm import router as confirm_router
 from app.web.cross_site import add_host_guards
 from app.web.finalize import router as finalize_router
 from app.web.review import router as review_router
-from app.web.routes import router
+from app.web.routes import router, templates
+from app.web.upload_limit import UploadSizeLimit
 
 
 def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
@@ -44,6 +47,15 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
     app = FastAPI(title="AI Invoice Ingestion Platform", lifespan=lifespan)
 
     add_host_guards(app, settings.allowed_hosts)
+    app.add_middleware(UploadSizeLimit)
+
+    @app.exception_handler(HTTPException)
+    async def not_found_page(request: Request, exc: HTTPException):
+        """A page, not JSON, when someone opens an invoice or page that doesn't exist."""
+        if exc.status_code != 404:
+            return await http_exception_handler(request, exc)
+        message = exc.detail if exc.detail != "Not Found" else "There's no page at this address."
+        return templates.TemplateResponse(request, "not_found.html", {"message": message}, status_code=404)
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
     app.include_router(router)
     app.include_router(confirm_router)

@@ -49,6 +49,10 @@ def arithmetic_warnings(lines, printed_total: Decimal | None, printed_total_text
     return warnings
 
 
+def _cents(amount: Decimal) -> Decimal:
+    return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 @dataclass(frozen=True)
 class PriceFlag:
     invoice: Decimal
@@ -68,7 +72,11 @@ def price_flag(unit_price: Decimal | None, catalog_price: Decimal | None) -> Pri
     A catalog price of zero or empty means no fixed price, and a missing invoice price is covered by the
     arithmetic check, so neither is flagged.
     """
-    if unit_price is None or not catalog_price or unit_price == catalog_price:
+    if unit_price is None or not catalog_price:
+        return None
+    # Compared to the cent, so a sub-cent difference can't show as "+$0.00".
+    unit_price, catalog_price = _cents(unit_price), _cents(catalog_price)
+    if unit_price == catalog_price:
         return None
     diff = unit_price - catalog_price
     pct = (diff / catalog_price * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)

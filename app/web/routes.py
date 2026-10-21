@@ -80,19 +80,24 @@ async def upload(request: Request, background_tasks: BackgroundTasks, file: list
         return upload_page(request, message=rejected.message, status_code=rejected.status_code)
     settings = request.app.state.settings
     stored = store(data, info.media_type, settings.data_dir)
-    with _sessions(request)() as s:
-        invoice = Invoice(
-            status=Status.EXTRACTING.value,
-            original_filename=file.filename or "upload",
-            stored_path=stored,
-            media_type=info.media_type,
-            uploaded_at=now_iso(),
-        )
-        s.add(invoice)
-        s.flush()
-        s.add(Run(invoice_id=invoice.id, step="extraction", started_at=invoice.uploaded_at))
-        s.commit()
-        invoice_id = invoice.id
+    try:
+        with _sessions(request)() as s:
+            invoice = Invoice(
+                status=Status.EXTRACTING.value,
+                original_filename=file.filename or "upload",
+                stored_path=stored,
+                media_type=info.media_type,
+                uploaded_at=now_iso(),
+            )
+            s.add(invoice)
+            s.flush()
+            s.add(Run(invoice_id=invoice.id, step="extraction", started_at=invoice.uploaded_at))
+            s.commit()
+            invoice_id = invoice.id
+    except BaseException:
+        # No invoice points at the file, so nothing would ever clean it up.
+        (settings.data_dir / "uploads" / stored).unlink(missing_ok=True)
+        raise
     start(background_tasks, request.app, invoice_id, run_extraction)
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
 

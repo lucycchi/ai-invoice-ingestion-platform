@@ -6,12 +6,12 @@ import httpx
 import pytest
 
 from app.clients.claude import (
-    MIN_CACHEABLE_TOKENS,
     ClaudeClient,
     ClaudeFailed,
     SharedPrompt,
     Usage,
     build_sdk,
+    min_cacheable_tokens,
 )
 from app.schemas import ExtractedHeader, ExtractedLine, ExtractionAnswer, GroupAnswer, LineResult
 
@@ -120,8 +120,18 @@ def test_count_shared_tokens_uses_the_same_system_blocks():
     assert sdk.calls[0]["system"][1]["text"] == SHARED.catalog_text
 
 
-def test_min_cacheable_tokens_for_opus_5_5():
-    assert MIN_CACHEABLE_TOKENS == 512
+@pytest.mark.parametrize("model, tokens", [
+    ("claude-opus-5-5", 512), ("claude-sonnet-5-5", 512), ("claude-haiku-5-5", 512),
+    ("claude-opus-4-8", 1024), ("claude-sonnet-5", 1024), ("claude-sonnet-4-6", 1024),
+    ("claude-opus-4-7", 2048), ("claude-opus-4-6", 4096), ("claude-haiku-4-5", 4096),
+])
+def test_min_cacheable_tokens_by_model(model, tokens):
+    assert min_cacheable_tokens(model) == tokens
+
+
+def test_unknown_model_uses_the_largest_minimum():
+    # Too high only skips the warm-up (slower); too low would warm a cache that never forms.
+    assert min_cacheable_tokens("claude-future-9") == 4096
 
 
 def test_retries_then_fails():

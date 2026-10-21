@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ctref
       POSTGRES_DB: ctref
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
       context: ./services/api
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       DATABASE_URL: postgresql://ctref:ctref@db:5432/ctref
     depends_on:

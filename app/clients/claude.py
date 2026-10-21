@@ -13,9 +13,20 @@ from app.schemas import ExtractionAnswer, GroupAnswer
 
 PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 
-# Shortest prompt start that claude-opus-5-5 will cache, from Claude's prompt-caching documentation
-# (the Claude API skill's prompt-caching reference, which lists 512 tokens for Claude Opus 5.5).
-MIN_CACHEABLE_TOKENS = 512
+# Shortest prompt start each model will cache, from Claude's prompt-caching documentation (the Claude API
+# skill's prompt-caching reference). A shorter start is silently not cached.
+MIN_CACHEABLE_TOKENS = {
+    "claude-fable-5-1": 512, "claude-fable-5": 512, "claude-opus-5-5": 512, "claude-opus-5": 512,
+    "claude-sonnet-5-5": 512, "claude-haiku-5-5": 512,
+    "claude-opus-4-8": 1024, "claude-sonnet-5": 1024, "claude-sonnet-4-6": 1024,
+    "claude-opus-4-7": 2048,
+    "claude-opus-4-6": 4096, "claude-haiku-4-5": 4096,
+}
+
+
+def min_cacheable_tokens(model: str) -> int:
+    """The model's minimum; for a model not listed, the largest one, since too high only skips the warm-up."""
+    return MIN_CACHEABLE_TOKENS.get(model, max(MIN_CACHEABLE_TOKENS.values()))
 
 MAX_TOKENS = 16000
 ATTEMPTS = 3

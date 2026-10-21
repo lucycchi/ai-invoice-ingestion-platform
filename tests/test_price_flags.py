@@ -78,3 +78,13 @@ def test_medium_invoice_flags(env):
     flagged = {p: json.loads(m.price_flag) for p, m in env.matches(invoice_id).items() if m.price_flag}
     assert list(flagged) == [11]
     assert flagged[11]["text"] == "Invoice $550.00, catalog $500.00, +$50.00 (+10%)"
+
+
+def test_sub_cent_difference_not_flagged():
+    assert price_flag(D("1.001"), D("1.00")) is None
+
+
+def test_sub_cent_prices_compared_to_the_cent():
+    flag = price_flag(D("1.006"), D("1.00"))
+    assert flag.text == "Invoice $1.01, catalog $1.00, +$0.01 (+1%)"
+    assert (flag.invoice, flag.catalog, flag.diff) == (D("1.01"), D("1.00"), D("0.01"))
