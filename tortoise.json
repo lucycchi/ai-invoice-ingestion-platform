@@ -28,9 +28,15 @@
       "date": "2026-10-20",
       "tag": "tortoise/milestone-1",
       "milestone": 1
+    },
+    {
+      "stage": "gate",
+      "date": "2026-10-20",
+      "tag": "tortoise/milestone-2",
+      "milestone": 2
     }
   ],
-  "milestone": 1,
+  "milestone": 2,
   "milestones": 4,
   "board": {
     "number": 5,
@@ -49,49 +55,49 @@
         "issue": 1,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQviQ",
         "title": "App skeleton, settings, database and Docker service (Task 1)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "2": {
         "issue": 2,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvkc",
         "title": "Reference API client that fetches every page (Task 2)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "3": {
         "issue": 3,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvnI",
         "title": "Status guard, claims and restart recovery (Task 3)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "4": {
         "issue": 4,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvpI",
         "title": "Upload screen, file checks and invoice list (Task 4)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "5": {
         "issue": 5,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvs0",
         "title": "Claude client with structured answers, retries and usage counts (Task 5)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "6": {
         "issue": 6,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvv8",
         "title": "Extraction step, arithmetic checks and progress page (Task 6)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "7": {
         "issue": 7,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv0M",
         "title": "Metadata matching rules (Task 7)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "8": {
         "issue": 8,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv3k",
         "title": "Confirmation screen, warnings and the gate (Task 8)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "9": {
         "issue": 9,
@@ -139,8 +145,8 @@
     }
   },
   "last_gate": {
-    "milestone": 1,
+    "milestone": 2,
     "passed": true,
-    "fingerprint": "093f18dd97dc46035c70b3b35e7416c62cd5f8b3"
+    "fingerprint": "44f3a743e29b5ade621c26692186793271a5cc6a"
   }
 }

@@ -48,13 +48,13 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <main>
 <header>
 <h1>AI Invoice Ingestion Platform</h1>
-<p class="stage">Current stage: Milestone gate, milestone 1 of 4 (needs your approval before moving on)</p>
+<p class="stage">Current stage: Milestone gate, milestone 2 of 4 (needs your approval before moving on)</p>
 </header>
 <section id="summary">
 <h2>Summary</h2>
 <p><strong>The problem.</strong> A clinical trial site sends an invoice to the drug company paying for the trial (the sponsor). Someone has to tie the invoice to the right sponsor, study and site, and check each billed line against the approved items and prices for that sponsor and study (the catalog). The take-home brief adds one hard rule: line items may only be matched after a person has confirmed the sponsor and study, because those decide which catalog applies.</p>
 <p><strong>The approach.</strong> One Python web app, built with FastAPI and plain server-rendered pages, runs as a third container next to the provided reference API and its Postgres database. It keeps its own data in an SQLite file on a Docker volume. Claude (<code>claude-opus-5-5</code>) reads each uploaded file and later suggests a catalog item for each line. Matching the invoice's header facts to sponsors, studies and sites is ordinary code. Every step is guarded by a stored status on the invoice, and the server refuses any step whose status is wrong, which is what makes the confirmation gate real.</p>
-<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. Milestone 1 is built: the app skeleton, database, reference API client, status guard and upload screen. Extraction and the later steps follow in milestones 2 to 4.</p>
+<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. Milestones 1 and 2 are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions and the confirmation gate. Line matching, review, finalizing and delivery follow in milestones 3 and 4.</p>
 <p>Requirements are referred to by name with their spec number in brackets, such as "the gate refusing early matching (R28)".</p>
 </section>
 <h3>Key decisions</h3>
@@ -74,12 +74,12 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li class="task done"><span class="box" aria-label="done">✓</span><span>Task 3: status guard, claims and restart recovery. Requirements: R27, R28, R29, R31, R33</span></li>
 <li class="task done"><span class="box" aria-label="done">✓</span><span>Task 4: upload screen, file checks and invoice list. Requirements: R7, R8, R9, R10, R53</span></li>
 </ul>
-<h3>Milestone 2: Reading invoices and confirming their metadata (0 of 4 done)</h3>
+<h3>Milestone 2: Reading invoices and confirming their metadata (4 of 4 done)</h3>
 <ul>
-<li class="task"><span class="box" aria-label="not done"></span><span>Task 5: Claude client with structured answers, retries and usage counts. Requirements: R4, R11, R12, R51, R62</span></li>
-<li class="task"><span class="box" aria-label="not done"></span><span>Task 6: extraction step, arithmetic checks and progress page. Requirements: R4, R11, R12, R13, R14, R15, R16, R17, R30, R51, R52, R62</span></li>
-<li class="task"><span class="box" aria-label="not done"></span><span>Task 7: metadata matching rules. Requirements: R18, R19, R20, R21, R22, R23, R30, R35</span></li>
-<li class="task"><span class="box" aria-label="not done"></span><span>Task 8: confirmation screen, warnings and the gate. Requirements: R22, R24, R25, R26, R28, R32, R35, R61</span></li>
+<li class="task done"><span class="box" aria-label="done">✓</span><span>Task 5: Claude client with structured answers, retries and usage counts. Requirements: R4, R11, R12, R51, R62</span></li>
+<li class="task done"><span class="box" aria-label="done">✓</span><span>Task 6: extraction step, arithmetic checks and progress page. Requirements: R4, R11, R12, R13, R14, R15, R16, R17, R30, R51, R52, R62</span></li>
+<li class="task done"><span class="box" aria-label="done">✓</span><span>Task 7: metadata matching rules. Requirements: R18, R19, R20, R21, R22, R23, R30, R35</span></li>
+<li class="task done"><span class="box" aria-label="done">✓</span><span>Task 8: confirmation screen, warnings and the gate. Requirements: R22, R24, R25, R26, R28, R32, R35, R61</span></li>
 </ul>
 <h3>Milestone 3: Matching lines and reviewing them (0 of 3 done)</h3>
 <ul>
@@ -622,7 +622,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     store["Data store&lt;br/&gt;(SQLite tables)"]
 
     pages --&gt;|"asks to start or change a step"| status
-    status --&gt;|"hands claimed work"| runner
+    pages --&gt;|"hands claimed work"| runner
     runner --&gt;|"runs reading"| extract
     runner --&gt;|"runs suggestions"| meta
     runner --&gt;|"runs matching"| lines
@@ -693,7 +693,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice this reading belongs to, unique"
+        INTEGER invoice_id FK "whole number: the invoice this reading belongs to, unique"
         BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
         TEXT header "extracted header fields as JSON"
         VARCHAR printed_total "exact decimal, or empty if none"
@@ -703,26 +703,26 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     }
     LINE_ITEMS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice it was read from"
-        INTEGER position "order on the invoice, from 1, unique per invoice"
+        INTEGER invoice_id FK "whole number: the invoice it was read from"
+        INTEGER position "whole number: order on the invoice, from 1, unique per invoice"
         TEXT description "as printed"
-        FLOAT quantity "number as printed, or empty if not printed"
+        FLOAT quantity "decimal number as printed, or empty if not printed"
         VARCHAR unit_price "exact decimal"
         VARCHAR amount "exact decimal"
     }
     METADATA_SUGGESTIONS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice suggested for"
+        INTEGER invoice_id FK "whole number: the invoice suggested for"
         VARCHAR field "sponsor, study or site, unique per invoice"
-        INTEGER entity_id "suggested reference API ID, or empty"
+        INTEGER entity_id "whole number: suggested reference API ID, or empty"
         TEXT entity_name "suggested name"
         VARCHAR confidence "exact, likely, uncertain or not_found"
         TEXT reasons "list of plain sentences as JSON"
     }
     CATALOG_SNAPSHOT {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice the catalog was fetched for"
-        INTEGER catalog_item_id "reference API catalog item ID, unique per invoice"
+        INTEGER invoice_id FK "whole number: the invoice the catalog was fetched for"
+        INTEGER catalog_item_id "whole number: reference API catalog item ID, unique per invoice"
         VARCHAR item_code "such as ADMIN-IRB"
         TEXT description "catalog description"
         VARCHAR category "such as administrative"
@@ -730,26 +730,26 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     }
     LINE_MATCHES {
         INTEGER id PK "whole number, given automatically"
-        INTEGER line_item_id FK "the line this match is for, unique"
-        INTEGER ai_catalog_item_id "AI's choice, or empty for no match"
+        INTEGER line_item_id FK "whole number: the line this match is for, unique"
+        INTEGER ai_catalog_item_id "whole number: AI's choice, or empty for no match"
         VARCHAR ai_confidence "high, medium or low"
         TEXT ai_reason "one sentence"
         TEXT ai_alternatives "up to two item IDs as JSON"
         VARCHAR override_kind "none, item or no_match"
-        INTEGER override_catalog_item_id "the person's choice, if any"
+        INTEGER override_catalog_item_id "whole number: the person's choice, if any"
         TEXT price_flag "both prices and the difference as JSON, or empty"
     }
     RUNS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice the run worked on"
-        VARCHAR step "extraction, metadata or matching"
+        INTEGER invoice_id FK "whole number: the invoice the run worked on"
+        VARCHAR step "extraction or matching"
         VARCHAR started_at "time the server received the request, as ISO 8601 text"
         VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
         VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
-        INTEGER claude_requests "number of calls to Claude"
-        INTEGER input_tokens "tokens sent"
-        INTEGER output_tokens "tokens received"
-        INTEGER cache_read_tokens "tokens read from Claude's cache"
+        INTEGER claude_requests "whole number: number of calls to Claude"
+        INTEGER input_tokens "whole number: tokens sent"
+        INTEGER output_tokens "whole number: tokens received"
+        INTEGER cache_read_tokens "whole number: tokens read from Claude's cache"
         BOOLEAN cache_applied "yes or no: the first group warmed the cache"
         TEXT outcome "succeeded or failed, with the reason"
     }</pre>
@@ -766,7 +766,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ul>
 <p>override side by side (the override rule, R47).</p>
 <ul>
-<li>Each invoice has a list of runs, one per extraction, metadata or matching attempt (the timing</li>
+<li>Each invoice has a list of runs, one per extraction or matching attempt (the timing</li>
 </ul>
 <p>record, R51).</p>
 <p>Going back to change the metadata (the going-back rule, R32) deletes that invoice's line matches and catalog snapshot, keeps its line items and extraction, and its runs stay as history.</p>
@@ -798,10 +798,10 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     P-&gt;&gt;P: 2. checks size, type from contents, then image size or PDF pages
     P-&gt;&gt;P: 3. saves the file, creates invoice in extracting status
     P--&gt;&gt;U: 4. redirects to the invoice page
-    G-&gt;&gt;R: 5. starts extraction in the background
+    P-&gt;&gt;R: 5. starts extraction in the background
     R-&gt;&gt;C: 6. sends the file, asks for fixed JSON
     C--&gt;&gt;R: 7. returns header, total and lines
-    R-&gt;&gt;R: 8. stores reading, runs arithmetic checks
+    R-&gt;&gt;R: 8. runs arithmetic checks, stores the reading
     R-&gt;&gt;M: 9. asks for sponsor, study, site suggestions
     M-&gt;&gt;A: 10. fetches sponsors, studies, sites, links
     A--&gt;&gt;M: 11. returns every page of each list
@@ -831,9 +831,9 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ol>
 <p>every line.</p>
 <ol>
-<li>The reading is stored, then the arithmetic checks run (the arithmetic rule, R16). A line with a</li>
+<li>The arithmetic checks run, then the reading and its warnings are stored (the arithmetic rule, R16).</li>
 </ol>
-<p>missing quantity, unit price or amount gets the warning "This line's arithmetic couldn't be checked: a number is missing", and the total check leaves that line's amount out and says so. If Claude said it is not an invoice, the status becomes extraction failed instead (R13).</p>
+<p>Each line's quantity times unit price is rounded to the cent before it is compared with the amount. A line with a missing quantity, unit price or amount gets the warning "Line N: this line's arithmetic couldn't be checked because a number is missing.", and the total check leaves out lines with no amount and says how many. Money printed with currency codes or symbols (such as <code>USD 2,230.00</code> or <code>€475</code>) or as an accounting negative (<code>(50.00)</code>) is read normally; a value that still can't be read as a number is stored as missing with a warning quoting how it was printed, and an unreadable printed total is reported as such rather than as "no total printed". If Claude said it is not an invoice, the status becomes extraction failed instead (R13). A Retry's reading is timed from when Retry was pressed; the first reading from the upload.</p>
 <ol>
 <li>Metadata matching starts straight away, in the same background job.</li>
 <li>It fetches all sponsors, studies, sites and study-site links through the reference API client.</li>
@@ -862,7 +862,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
         G-&gt;&gt;G: 6. one update, only from awaiting confirmation
         G--&gt;&gt;P: 7. claim won, or refused
         P--&gt;&gt;U: 8. shows progress, or the refusal
-        G-&gt;&gt;R: 9. starts line matching
+        P-&gt;&gt;R: 9. starts line matching
     end</pre>
 <p>This shows the gate: the only way into line matching.</p>
 <ol>
@@ -886,7 +886,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li>The guard hands line matching to the background runner, recording the time the request was</li>
 </ol>
 <p>received as the start of the matching run (the timing record, R51).</p>
-<p><strong>Warnings while choosing.</strong> Whenever the person changes the sponsor, study or site picker, the page asks the server to redraw the warnings for the current choice: the site not being linked to the study (the cross-check, R22) and an earlier invoice with the same invoice number and confirmed site (the duplicate warning, R25). Neither warning blocks Confirm.</p>
+<p><strong>Warnings while choosing.</strong> Whenever the person changes the sponsor, study or site picker, the page asks the server to redraw the warnings for the current choice: the site not being linked to the study (the cross-check, R22) and an earlier upload with the same invoice number whose site is currently confirmed as the same one (the duplicate warning, R25). Neither warning blocks Confirm.</p>
 <p>There is no other route that starts matching. Retry from matching failed uses the same guard, with matching failed as the only allowed starting status.</p>
 <h4>4.3 Matching line items</h4>
 <pre class="mermaid">sequenceDiagram
@@ -1052,13 +1052,17 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ul>
 <p>is the speed control. Extraction starts at <code>medium</code> and line matching at <code>low</code>. The live tests measure both, and the effort can be raised if accuracy falls short.</p>
 <ul>
-<li><strong>Refusals.</strong> If Claude stops with a refusal, the call counts as failed and goes through the same</li>
+<li><strong>Unusable answers.</strong> A refusal, an answer cut off at the token limit, or an answer that doesn't</li>
 </ul>
-<p>retry rules as an error.</p>
+<p>fit the shape counts as failed and goes through the same retry rules as an error. A failed call still counts as a request in the run's numbers, and the reason shown never repeats the error's own text.</p>
 <ul>
-<li><strong>Timeouts and retries.</strong> Extraction: 120 seconds per call, then two retries (R62). Matching: 60</li>
+<li><strong>Prompts.</strong> The extraction instructions live in <code>app/prompts/extraction.md</code>; the matching</li>
 </ul>
-<p>seconds per call, then two retries with growing waits (R41).</p>
+<p>instructions will live beside them.</p>
+<ul>
+<li><strong>Timeouts and retries.</strong> The <code>anthropic</code> library's own retries are turned off, so these are the</li>
+</ul>
+<p>total. Extraction: 120 seconds per call; matching: 60 seconds per call; each followed by up to two more tries after waits of 1 and 3 seconds (R62, R41). Every request sets <code>max_tokens=16000</code>.</p>
 <ul>
 <li><strong>Usage.</strong> Every answer's token counts are added to the current run (R51).</li>
 <li><strong>The key</strong> is read once from <code>ANTHROPIC_API_KEY</code> at startup and is never logged or stored (R4).</li>
@@ -1080,31 +1084,31 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>The answer shape is a list of results, each with the line's position, a catalog item ID or null for no match, high, medium or low confidence, a one-sentence reason, and up to two alternative IDs.</p>
 <p><strong>Estimated timing for the large invoice</strong> (to be checked by measurement): 27 lines make 5 groups. If the catalog is too short to cache, all 5 go at once and finish in roughly the time of the slowest one. If it can be cached, one group goes first, then four at once, which is about two calls' time. With calls taking roughly 8 to 15 seconds at low effort, both fit inside the 30-second target.</p>
 <h3>7. Metadata matching rules</h3>
-<p>All comparisons first clean the text: lower case, punctuation removed, spaces collapsed.</p>
+<p>All comparisons first clean the text: lower case, accents removed, punctuation removed, spaces collapsed.</p>
 <ul>
-<li><strong>Exact</strong> means the cleaned text is identical (for a name), or the protocol number is identical.</li>
+<li><strong>Exact</strong> means the cleaned text is identical (for a name; a sponsor's short code also counts), or</li>
 </ul>
-<p>Company endings are not removed for this test, so "Northwind Pharmaceuticals Inc." is never exact for "Northwind Pharma" (R19).</p>
+<p>the protocol number is identical. Company endings are not removed for this test, so "Northwind Pharmaceuticals Inc." is never exact for "Northwind Pharma" (R19).</p>
 <ul>
 <li><strong>Fuzzy score.</strong> For likely and uncertain, the app also removes common company endings ("inc",</li>
 </ul>
-<p>"ltd", "llc", "pharmaceuticals", "pharma", "therapeutics", "biopharma", "life sciences") and scores similarity with the <code>rapidfuzz</code> library's token set ratio, from 0 to 100.</p>
+<p>"ltd", "llc", "co", "corp", "company", "pharmaceuticals", "pharma", "therapeutics", "biopharma", "life", "sciences") and scores similarity with the <code>rapidfuzz</code> library's token set ratio, from 0 to 100.</p>
 <ul>
 <li><strong>Starting thresholds</strong>, tuned by the tests: 85 or more is likely; 60 to 84 is uncertain; below 60</li>
 </ul>
-<p>is not found. A clear gap to the second-best candidate is required for likely.</p>
+<p>is not found. Likely also needs a lead of at least 10 points over the second-best candidate.</p>
 <ul>
 <li><strong>Protocol numbers</strong> are compared segment by segment, split on hyphens. A protocol that differs from</li>
 </ul>
-<p>a real one in exactly one segment is likely, and the reason names that segment ("differs in the year" when the segment is a four-digit year) (R20). The study name is also scored, and a name that points to a different study lowers an exact protocol match to likely.</p>
+<p>a real one in exactly one segment is likely, and the reason names that segment ("differs in the year" when the segment is a four-digit year) (R20). The study name is always scored too: a name that points clearly to a different study lowers an exact protocol match to likely, and a one-segment near miss to uncertain, with the conflict named. A study with no protocol match is scored by name alone.</p>
 <ul>
 <li><strong>Sites</strong> add supporting evidence to the name score: the same city and state, and the same</li>
 </ul>
-<p>principal investigator surname, each move the confidence up one level, at most to likely. A name score below 60 with all three supporting facts matching is uncertain (R21).</p>
+<p>principal investigator surname. Two facts together, or one fact with a name score of at least 60, move the confidence up one level, at most to likely (R21). An exact site name whose printed city, state or investigator disagrees with the record is likely, not exact, with the disagreement named.</p>
 <ul>
-<li><strong>Cross-checks</strong> then run as the spec describes (R22): study against sponsor, sponsor taken from</li>
+<li><strong>Cross-checks</strong> then run as the spec describes (R22): study against sponsor; sponsor taken from</li>
 </ul>
-<p>the study, and a site not linked to the study lowering the site's confidence by one level.</p>
+<p>the study (never rated above the study's own level); and a site not linked to the study lowering the site's confidence by one level. The confirmation screen shows the site-link and duplicate warnings as soon as it loads, and redraws them when a picker changes.</p>
 <p>Every expected example in the spec (R19, R20, R21 and the four sample invoices) is a unit test, so the thresholds can be tuned without guessing.</p>
 <h3>8. Data flow (what leaves the laptop)</h3>
 <pre class="mermaid">flowchart LR
@@ -1159,7 +1163,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li>Every background job runs inside a catch-all. Any error that isn't a handled Claude or reference</li>
 </ul>
-<p>API failure, such as a missing stored file or a database error, sets the matching failure status with the reason "Unexpected error: …" and is logged, so an invoice never stays in extracting or matching while nothing is running. A missing stored file gives the reason "The uploaded file is missing; please upload it again", since Retry cannot fix that.</p>
+<p>API failure, such as a missing stored file or a database error, sets the running step's failure status with the reason "Unexpected error (&lt;error type&gt;); details are in the app log" and is logged, so an invoice never stays in extracting or matching while nothing is running. A missing stored file gives the reason "The uploaded file is missing; please upload it again", since Retry cannot fix that.</p>
 <ul>
 <li>When the app starts, before taking any requests, it moves every invoice still in extracting or</li>
 </ul>
@@ -1191,7 +1195,8 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td><code>GET /invoices/{id}/studies?sponsor_id=</code></td><td>Study picker choices for a sponsor</td><td></td></tr>
 <tr><td><code>GET /invoices/{id}/warnings?sponsor_id=&amp;study_id=&amp;site_id=</code></td><td>Redraws the site-link and duplicate warnings for the current choice</td><td></td></tr>
 <tr><td><code>POST /invoices/{id}/confirm</code></td><td>Confirms sponsor, study and site; starts matching</td><td>409 wrong status, 422 invalid choice, 503 reference API unreachable</td></tr>
-<tr><td><code>POST /invoices/{id}/change-metadata</code></td><td>Clears matches after the warning, back to awaiting confirmation</td><td>409 wrong status</td></tr>
+<tr><td><code>GET /invoices/{id}/change-metadata</code></td><td>The warning of how many matches and overrides will be cleared</td><td>409 wrong status</td></tr>
+<tr><td><code>POST /invoices/{id}/change-metadata</code></td><td>Clears matches, overrides, the catalog snapshot and the confirmed choices; back to awaiting confirmation</td><td>409 wrong status</td></tr>
 <tr><td><code>POST /invoices/{id}/retry</code></td><td>Reruns the failed step</td><td>409 wrong status</td></tr>
 <tr><td><code>GET /invoices/{id}/catalog?q=</code></td><td>Searches the catalog snapshot for a picker</td><td></td></tr>
 <tr><td><code>POST /invoices/{id}/lines/{line_id}/override</code></td><td>Saves an override or "No match"</td><td>409 wrong status</td></tr>
@@ -1203,7 +1208,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td><code>GET /health</code></td><td>Says whether the app is up</td><td></td></tr>
 </tbody>
 </table>
-<p>All pages use Jinja2 templates with automatic escaping turned on, so invoice and Claude text is always shown as text (R53). htmx is served from the app's own static folder, with no outside download at run time.</p>
+<p>Every <code>POST</code> route also answers 403 to a request from another website, and the app answers 400 to any host name other than <code>localhost</code> or <code>127.0.0.1</code> (section 12, <code>cross_site.py</code>). All pages use Jinja2 templates with automatic escaping turned on, so invoice and Claude text is always shown as text (R53). htmx is served from the app's own static folder, with no outside download at run time.</p>
 <h3>12. Code structure</h3>
 <pre class="mermaid">flowchart TB
     main["app/main.py&lt;br/&gt;startup, settings check, recovery"]
@@ -1218,7 +1223,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 
     main --&gt;|"mounts"| web
     web --&gt;|"asks for moves"| status
-    status --&gt;|"hands work to"| jobs
+    web --&gt;|"hands work to"| jobs
     jobs --&gt;|"runs"| steps
     steps --&gt;|"calls"| clients
     steps --&gt;|"uses"| checks
@@ -1240,7 +1245,11 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li><code>app/uploads.py</code> (not drawn) checks an upload and stores it under a generated name.</li>
 <li><code>app/clock.py</code> (not drawn) gives the current time as ISO 8601 text.</li>
-<li><code>app/web/</code> holds the route handlers, the Jinja2 templates and the static htmx file.</li>
+<li><code>app/web/</code> holds the route handlers (<code>routes.py</code> for uploads, progress and the invoice page;</li>
+</ul>
+<p><code>confirm.py</code> for the confirmation screen and the gate), the Jinja2 templates, the static htmx file, and <code>cross_site.py</code>, which serves only <code>localhost</code> and <code>127.0.0.1</code> (blocking DNS-rebinding attacks) and refuses state-changing requests a browser marks as coming from another site, or whose Origin isn't the app's own address and port (HTTP 403).</p>
+<ul>
+<li><code>app/prompts/</code> holds the instructions sent to Claude, starting with <code>extraction.md</code>.</li>
 <li><code>app/status.py</code> holds the table of allowed moves and the claim function. It is the only place a</li>
 </ul>
 <p>status is written.</p>
@@ -1682,6 +1691,77 @@ tests/test_upload.py .............                                       [100%]
 <p>After the fixes the suite has 50 tests, all passing.</p>
 <h4>Author's choices</h4>
 <p>On 2026-10-20 the author accepted every recommendation: fix the code findings test-first, refuse several files, hide the key as a secret value, never round money and refuse floats, accept PDFs that open without a password, keep the friendly status labels, fix the invoice number in the extraction task, add the missing tests, and change the architecture document (not the code) for the column types.</p>
+<h3>Milestone 2 gate</h3>
+<p>Reviews of this milestone compare against <code>tortoise/milestone-1</code>, the last approval.</p>
+<h4>Tests</h4>
+<p><strong>Passed:</strong> <code>.venv/bin/pytest</code> finished with exit code 0.</p>
+<pre><code>============================= test session starts ==============================
+platform linux -- Python 3.13.13, pytest-9.1.1, pluggy-1.7.0
+rootdir: /home/lucyc/gauntlet/AI_Invoice_Ingestion_Platform_LedgerRun
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1
+collected 169 items
+
+tests/test_arithmetic.py ........                                        [  4%]
+tests/test_claude_client.py ....................                         [ 16%]
+tests/test_confirm.py .........................                          [ 31%]
+tests/test_cross_site.py .........                                       [ 36%]
+tests/test_extraction_step.py ...............                            [ 45%]
+tests/test_metadata.py ........................                          [ 59%]
+tests/test_models.py ......                                              [ 63%]
+tests/test_money.py ..................                                   [ 73%]
+tests/test_reference_api.py ............                                 [ 81%]
+tests/test_startup.py ........                                           [ 85%]
+tests/test_status.py ...........                                         [ 92%]
+tests/test_upload.py .............                                       [100%]
+
+============================= 169 passed in 8.13s ==============================</code></pre>
+<h4>Requirement coverage</h4>
+<p>Every requirement in SPEC.md is named by a task in PLAN.md.</p>
+<h4>Tasks</h4>
+<p>Every task in milestone 2 is ticked (4 of 4).</p>
+<h4>Architecture check</h4>
+<p>Codex (<code>gpt-6-sol</code>) and a fresh Claude agent each compared the code with <code>docs/ARCHITECTURE.md</code>.</p>
+<p><strong>Both found:</strong> no milestone 2 work missing; the status line out of date; the catch-all reason and failure status described wrongly; ID and quantity fields lacking plain meanings in the database diagram; reference API outages unhandled in Confirm's study's-sponsor lookup and in the study picker (code). <strong>Disagreement:</strong> the document promised a "metadata" run record the code never writes. Claude proposed adding it to the code, Codex removing it from the document; the author chose the document, since the spec asks for timing records of extraction and matching only.</p>
+<p><strong>Only Claude found:</strong> background work is started by the page handlers, not the status guard; the arithmetic warning text and which lines the total leaves out; several metadata rule details (accents, the extra company endings, the 10-point lead, one level in total from site evidence, short codes, name scoring without a protocol); the cross-site guard, the change-metadata warning page, the extraction prompt file, the broader Claude retries and the duplicate warning's scope were undocumented.</p>
+<p><strong>Only Codex found:</strong> the reading flow ordered storage before the arithmetic checks; unreadable numbers from Claude being stored as missing was undocumented.</p>
+<p><strong>Document changes applied</strong> for all of the above; all 14 diagrams were checked in a browser and draw.</p>
+<h4>Reviews</h4>
+<table>
+<thead><tr><th>Finding</th><th>Codex</th><th>Claude</th><th>Outcome</th></tr></thead>
+<tbody>
+<tr><td>Site-link and duplicate warnings missing when the confirmation screen first loads</td><td></td><td>Yes</td><td>Fixed, with tests</td></tr>
+<tr><td>Line arithmetic compares unrounded products</td><td>Yes</td><td>Yes</td><td>Fixed: rounded to the cent, with tests</td></tr>
+<tr><td>A near-miss protocol never compares the study name</td><td>Yes</td><td>Yes (unclear)</td><td>Fixed: uncertain with the conflict named, with a test</td></tr>
+<tr><td>An exact site name hides a conflicting city, state or investigator</td><td>Yes</td><td></td><td>Fixed: likely with the conflict named, with a test</td></tr>
+<tr><td>Confirm checks the choices before the status</td><td>Yes</td><td>Yes (unclear)</td><td>Fixed: status first, 409, with a test</td></tr>
+<tr><td>Reference API outages unhandled in Confirm's owner lookup and the study picker</td><td>Yes</td><td>Yes</td><td>Fixed: 503 with a message, with tests</td></tr>
+<tr><td>The duplicate warning compares later and re-opened uploads</td><td>Yes</td><td>Yes (unclear)</td><td>Fixed: earlier uploads whose site is still confirmed; changing metadata clears confirmed choices; tests</td></tr>
+<tr><td>A Retry's reading is timed from the upload</td><td></td><td>Yes</td><td>Fixed, with a test</td></tr>
+<tr><td>An unreadable printed total is called "not printed"</td><td></td><td>Yes</td><td>Fixed: currency forms read, unreadable values reported as such, with tests</td></tr>
+<tr><td>"NaN" or "Infinity" from Claude crashes the reading</td><td></td><td>Yes</td><td>Fixed: refused as unreadable, with tests</td></tr>
+<tr><td>A sponsor taken from the study is always "likely"</td><td></td><td>Yes (unclear)</td><td>Fixed: never above the study, with a test</td></tr>
+<tr><td>Tests miss the cases above, and the "likely" check matched CSS class names</td><td>Yes</td><td>Yes</td><td>Tests added; the label check is now exact</td></tr>
+</tbody>
+</table>
+<p>After the fixes the suite has 164 tests, all passing.</p>
+<p><strong>Security fixes made during this milestone</strong> (from the automated security review, outside the four reviews): the app's port is published on localhost only; form posts from other websites are refused (403); only the host names <code>localhost</code> and <code>127.0.0.1</code> are served, blocking DNS rebinding; and a request's Origin must match the app's own address and port exactly.</p>
+<h4>Author's choices</h4>
+<p>On 2026-10-20 the author accepted every recommendation: fix all code findings test-first, add the missing tests, change the architecture document to match the code, and remove the "metadata" run record from the document rather than add it to the code. The security fixes were made as they were flagged and are listed above for the author to keep or reverse.</p>
+<p><strong>Real Claude check (done after the author added a key):</strong> the first real call failed: the API rejected the extraction answer shape ("Schema is too complex", HTTP 400), and each of the three tries took about a minute. Fixed by making every answer field required and nullable, and by not retrying requests the API rejects as invalid (tests added). Then, with the real <code>claude-opus-5-5</code>:</p>
+<ul>
+<li><strong>Large invoice:</strong> read in 14 seconds (5,933 input and 1,373 output tokens); all 27 lines from both</li>
+</ul>
+<p>pages with exact quantities and prices, total $29,191.00, no arithmetic warnings; Northwind Pharma, LUMIN-2024 and Highland Ridge Hospital - Research Unit suggested as exact. Retry after the failed attempt worked, timed from the Retry.</p>
+<ul>
+<li><strong>Mismatched-metadata invoice:</strong> read in 5.2 seconds; all 7 lines; Northwind Pharma, VERITAS and</li>
+</ul>
+<p>Prairie Field Research Group all suggested as likely, with the name, year and site reasons, on a confirmation screen checked in a browser with no console errors.</p>
+<ul>
+<li><strong>Simple invoice:</strong> read correctly in 8.4 seconds (checked directly, outside the app).</li>
+</ul>
+<p>Along the way the API key was briefly pasted into <code>.env.example</code> (tracked by Git). It was moved to <code>.env</code> before any commit; Git's history contains no key.</p>
 </section>
 <section id="final-checks">
 <h2>Final checks</h2>
