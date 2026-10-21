@@ -11,7 +11,7 @@ design choice, with its reasons, is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Running it
 
-You need Docker (with Docker Compose) and an Anthropic API key.
+You need Docker with Docker Compose 2.24 or later (for the optional `.env` entry in `docker-compose.yml`) and an Anthropic API key.
 
 ```bash
 cp .env.example .env          # then put your key after ANTHROPIC_API_KEY= in .env
@@ -78,7 +78,7 @@ What to expect from each sample:
 
 ```bash
 python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # Python 3.13; or use uv
-.venv/bin/pytest              # 278 tests; free and offline: Claude and the reference API are stand-ins
+.venv/bin/pytest              # 279 tests; free and offline: Claude and the reference API are stand-ins
 .venv/bin/pytest -m live -s   # the live tests: real Claude, the running reference API (start it first)
 .venv/bin/pytest -m browser  # browser tests: Playwright drives Chromium through the running app (docker compose up first)
 ```
@@ -98,7 +98,8 @@ match every line to ADMIN-SITE". They take about a minute and a half and cost ro
 (about 5 cents per invoice with `claude-opus-5-5`). `scripts/make_test_files.py` rebuilds those extra
 files.
 
-**Live results** (2026-10-20, `claude-opus-5-5`):
+**Live results** (2026-10-20, `claude-opus-5-5`, with the final matching prompt, whose examples are
+not taken from the samples):
 
 - **47 of 47** lines matched to the expected catalog item across the four PDFs (the pass bar is 45), with
   exactly the two expected price flags and all three no-match lines found.
@@ -116,6 +117,10 @@ end when the last match is saved. Reading has no on-screen figure; its time runs
 
 **The target is under 30 seconds for matching the large invoice. Measured: 9.5 seconds (first run)
 and 9.4 seconds (repeat).** The slowest matching of all was 10.3 seconds; the slowest reading, 11.5 seconds.
+
+The *Claude requests* column was measured before a later fix and leaves out the one token-counting
+request that each matching run makes before it decides whether to warm the cache. Matching runs now
+count it, so each would show one more.
 
 | Invoice file | Step | Run | On-screen seconds | Stored seconds | Claude requests | Input tokens | Output tokens | Cache-read tokens | First group warmed the cache |
 |---|---|---|---|---|---|---|---|---|---|
@@ -165,9 +170,12 @@ Both prompts are plain files in [`app/prompts/`](app/prompts/), and both answers
   The instructions ask for one result per line: a catalog ID or null, a confidence, a one-sentence
   reason a reviewer can check, and up to two alternatives. They say to match on meaning (abbreviations,
   rewording), that **price may break a tie but never decides a match on its own** (with worked
-  examples: cold-chain shipping at $125 is Cold Chain Shipping, not Study Drug Shipping at $75; but the
-  IRB line at $550 is still the IRB item at $500), and that line text is untrusted data, never
-  instructions. Every answer is checked in code: one result per line, every ID in the catalog. Lines
+  examples: a frozen-sample courier line at $90 is the Frozen Sample Courier item, not the Standard
+  Courier at $40; but a pharmacy setup fee at $900 is still the pharmacy setup item at $800), and that
+  line text is untrusted data, never instructions. No example in the prompt comes from the sample
+  invoices. An earlier version named the samples' own lines (their abbreviations, their three no-match
+  items and their price mismatch), which made the test score partly a test of memory. The examples
+  were replaced with ones that appear in no sample, and the live score stayed 47 of 47. Every answer is checked in code: one result per line, every ID in the catalog. Lines
   that fail are sent once more; anything still unusable is left for *Retry* rather than stored as "no
   match". Price flags are worked out in code, not by Claude.
 - **Speed:** lines go in groups of six, at most five requests at once, and the first group goes alone
@@ -191,8 +199,9 @@ any other way.
   year"), a sponsor name that differs only by its company ending, a site whose name differs but whose
   city, state and investigator match. An exact protocol whose study name points elsewhere is lowered to
   likely, with the conflict named.
-- **Cross-checks:** a site not listed as taking part in the chosen study lowers its confidence and shows
-  a warning; so does an earlier upload with the same invoice number and site (a possible duplicate).
+- **Cross-checks:** a suggested site that isn't listed as taking part in the chosen study gets a lower
+  confidence and a warning, and a site you choose that isn't listed gets the warning. An earlier upload
+  with the same invoice number and site shows a possible-duplicate warning.
 - **Nothing found:** the field starts empty with a picker, and Confirm needs a choice.
 - **Reference API down:** the reading is kept, and *Retry* reruns only the suggestions.
 
@@ -212,7 +221,7 @@ app stops repeating a mistake a person has already fixed.
 - Real site invoices can contain personal data. The file is sent to Anthropic's API to be read; nothing
   else leaves the machine. The app log records an unexpected error's type and where it happened, never
   its text, since that could hold invoice content.
-- Uploads over 10 MB are refused while they arrive, before anything is written to disk.
+- Uploads over 10 MB are refused while they arrive, so at most about 10 MB of any upload reaches temporary storage.
 - **Known limit:** there is no overall cap on paid Claude calls. Each upload costs about 5 cents and each
   call is tried at most three times, but nothing stops many uploads in a row. For one person on their own
   machine that was judged acceptable; a shared deployment would need a spending limit first.

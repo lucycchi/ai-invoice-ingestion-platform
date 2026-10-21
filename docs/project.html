@@ -48,7 +48,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <main>
 <header>
 <h1>AI Invoice Ingestion Platform</h1>
-<p class="stage">Current stage: Milestone gate, milestone 4 of 4 (needs your approval before moving on)</p>
+<p class="stage">Current stage: Final checks (needs your approval before moving on)</p>
 </header>
 <section id="summary">
 <h2>Summary</h2>
@@ -1408,7 +1408,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><a href="https://docs.sqlalchemy.org/en/21/changelog/migration_21.html">https://docs.sqlalchemy.org/en/21/changelog/migration_21.html</a>: SQLAlchemy 2.1 makes a plain postgresql:// address load the psycopg version 3 driver by default instead of psycopg2.</li>
 </ul></li>
 <li><strong>Choice:</strong> Keep SQLAlchemy on the 2.0 series (sqlalchemy&gt;=2.0.36,&lt;2.1)</li>
-<li><strong>Reason:</strong> It is the smallest change to code we were given, it keeps the starter code running the way it was written and tested, and it touches one file. Already applied and committed; the API starts and its seed data matches the take-home instructions. This entry also appears in the root DECISIONS.md.</li>
+<li><strong>Reason:</strong> It is the smallest change to code we were given, it keeps the starter code running the way it was written and tested, and it touches one file. Already applied and committed; the API starts and its seed data matches the take-home instructions.</li>
 </ul>
 <h3>D2: Which AI model provider should the app use to read invoices and match line items? The author has keys for both Anthropic (Claude) and OpenAI.</h3>
 <ul>
@@ -1610,11 +1610,46 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><strong>Choice:</strong> Keep groups, separate data fields, and a test that other lines are unaffected</li>
 <li><strong>Reason:</strong> No prompt design can guarantee isolation, and one request per line would likely break the latency target (D9) for little practical gain on a single-user demo. Separate fields plus an explicit test give checkable evidence. This changes the wording of the invoice-text safety rule (R54) in the approved spec from a guarantee to a tested property; no required item from the brief is left unmet.</li>
 </ul>
+<h3>D13: Should the matching prompt's worked examples come from the sample invoices, including the tie-break example the spec gives for price breaking a tie (R39)?</h3>
+<ul>
+<li><strong>Status:</strong> proposed</li>
+<li><strong>Proposed by:</strong> Claude (claude-opus-5-5) on 2026-10-20</li>
+<li><strong>Options:</strong>
+<ul>
+<li>Use examples that appear in no sample invoice, keeping the tie-break rule but with a new example</li>
+<li>Keep the sample-derived examples and disclose them in the README</li>
+</ul></li>
+<li><strong>Research:</strong>
+<ul>
+<li><a href="app/prompts/matching_instructions.md">app/prompts/matching_instructions.md</a>: The earlier prompt named the samples' abbreviations, their three no-match lines and their price mismatch.</li>
+<li><a href="tests/live/test_samples_live.py">tests/live/test_samples_live.py</a>: Rerun with the neutral prompt on 2026-10-20: 47 of 47 lines matched, both price flags and all three no-match lines found.</li>
+</ul></li>
+<li><strong>Choice:</strong> Use examples that appear in no sample invoice, keeping the tie-break rule but with a new example</li>
+<li><strong>Reason:</strong> Examples taken from the samples made the live score partly a test of memory; the author chose neutral examples and a rerun. The rule the spec requires (price may break a tie but never decides a match) is unchanged, but its example is now a frozen-sample courier line rather than the spec's cold-chain shipping line, which is itself a sample line. The score stayed 47 of 47. No required item from the PRD review's table is affected.</li>
+</ul>
+<h3>D14: How should the status guard take SQLite's write lock before reading an invoice it will change (status guard task, Task 3)?</h3>
+<ul>
+<li><strong>Status:</strong> proposed</li>
+<li><strong>Proposed by:</strong> Claude (claude-opus-5-5) on 2026-10-20</li>
+<li><strong>Options:</strong>
+<ul>
+<li>A conditional update that changes nothing, which takes the write lock inside the normal transaction</li>
+<li>BEGIN IMMEDIATE, as the plan says</li>
+</ul></li>
+<li><strong>Research:</strong>
+<ul>
+<li><a href="app/status.py">app/status.py</a>: locked_invoice runs a no-change UPDATE on the invoice row, then re-reads it.</li>
+<li><a href="tests/test_status.py">tests/test_status.py</a>: Concurrency tests check that two writers can't both pass the guard.</li>
+</ul></li>
+<li><strong>Choice:</strong> A conditional update that changes nothing, which takes the write lock inside the normal transaction</li>
+<li><strong>Reason:</strong> SQLAlchemy has already begun its own transaction by the time the guard runs, so a second BEGIN IMMEDIATE can't be issued without changing how every session starts. A no-change UPDATE takes the same write lock at the same moment and is covered by the concurrency tests. It was built this way but not recorded; the final review by a fresh agent and Codex pointed out the gap.</li>
+</ul>
 <h3>Glossary</h3>
 <ul>
 <li><strong>Acknowledgment:</strong> The user's explicit confirmation that they have seen the open problems, saved with the invoice.</li>
 <li><strong>Answer key:</strong> The expected result for each sample invoice, worked out from the generator script and the seed data.</li>
 <li><strong>Background work:</strong> Work the server keeps doing after it has answered the browser, so the page stays responsive.</li>
+<li><strong>BEGIN IMMEDIATE:</strong> a SQLite command that starts a transaction and takes the write lock straight away.</li>
 <li><strong>Confidence level:</strong> A label saying how sure the app is about a match: exact, likely, uncertain or not found.</li>
 <li><strong>Cross-check:</strong> Checking that the chosen sponsor, study and site fit together, using the reference API's records.</li>
 <li><strong>Document block:</strong> The way a PDF is attached to a request to Claude so the model can read it.</li>
@@ -1632,6 +1667,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><strong>Marked tests:</strong> Tests tagged so they are skipped by default and run only when asked for, such as tests that cost money.</li>
 <li><strong>Metadata:</strong> The invoice's header facts: sponsor, study and protocol, site, invoice number and date.</li>
 <li><strong>Model provider:</strong> The company whose AI model the app calls over the internet, such as Anthropic or OpenAI.</li>
+<li><strong>Overfitting:</strong> tuning something so closely to its test cases that the test score no longer shows how it does on new cases.</li>
 <li><strong>Override:</strong> A choice by the user that replaces the AI's suggestion, saved alongside the original suggestion.</li>
 <li><strong>Pass-through item:</strong> A cost the site passes on at whatever it actually cost, such as shipping or a device, rather than at a fixed rate.</li>
 <li><strong>Picker:</strong> A control that lets the user choose a sponsor, study or site from the reference data.</li>
@@ -1651,6 +1687,8 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><strong>Token:</strong> A small chunk of text, roughly three-quarters of a word, used to measure and bill model input and output.</li>
 <li><strong>Tolerance:</strong> An allowed amount of difference below which no flag is raised.</li>
 <li><strong>Version pin:</strong> A rule in requirements.txt that limits which versions of a library may be installed.</li>
+<li><strong>Worked example:</strong> a sample case written into a prompt to show the model how to apply a rule.</li>
+<li><strong>Write lock:</strong> SQLite's guarantee that only one connection can change the database at a time.</li>
 </ul>
 </section>
 <section id="gates">
@@ -1915,7 +1953,194 @@ tests/test_upload.py .............                                       [100%]
 </section>
 <section id="final-checks">
 <h2>Final checks</h2>
-<p>Final checks have not run yet.</p>
+<p>This is the record of the last stage of the project. Three independent checks looked at the finished app: a hands-on test in a real browser, a security audit, and a whole-project review by a second AI company's model. It lists what each one found, what was fixed and how, and what the author chose to leave. Every fix was made test-first: a test showing the problem was written and seen to fail before the code changed.</p>
+<h3>Summary</h3>
+<table>
+<thead><tr><th>Check</th><th>Found</th><th>Fixed</th><th>Left, by the author's choice</th></tr></thead>
+<tbody>
+<tr><td>Browser test (gstack <code>/qa</code>)</td><td>4 problems</td><td>4 (three during the test, the fourth in the final fixes)</td><td>none</td></tr>
+<tr><td>Security audit (gstack <code>/cso</code>, static mode)</td><td>1 problem</td><td>1</td><td>none</td></tr>
+<tr><td>Whole-project review (Codex, <code>gpt-6-sol</code>)</td><td>8 problems, one of them the audit's</td><td>7</td><td>the overall cap on paid Claude calls</td></tr>
+</tbody>
+</table>
+<p>At the end, all 279 offline tests pass (<code>.venv/bin/pytest</code>). The live tests against the real Claude scored 47 of 47 lines earlier in this stage. After the final fixes, the rebuilt app was checked by hand against the running stack.</p>
+<h3>1. Browser test</h3>
+<p>The gstack <code>/qa</code> skill drove a headless browser through the whole flow on http://localhost:8080: uploading each sample, confirming the sponsor, study and site, reviewing and overriding matches, then finalizing and downloading. It also checked phone-width layouts and the error paths. Its report is in <code>.gstack/qa-reports/run-20261021T023335Z/</code>, and its health score went from 92 to 99. That score is provisional, because performance and accessibility were not scored separately.</p>
+<ul>
+<li><strong>The study picker disappeared after the sponsor was changed (ISSUE-001, high).</strong> When the user picked</li>
+</ul>
+<p>a different sponsor, the study picker vanished, so the invoice couldn't be confirmed. The page library (htmx) was replacing the whole form instead of only the list inside the picker. Fixed in <code>9038511</code>.</p>
+<ul>
+<li><strong>Wide tables made the whole page scroll sideways on a phone (ISSUE-002, medium).</strong> Each table now</li>
+</ul>
+<p>scrolls inside its own box. Fixed in <code>af6fbff</code>.</p>
+<ul>
+<li><strong>Retry timings were measured from the upload (ISSUE-003, medium).</strong> A Retry after a restart reported</li>
+</ul>
+<p>"Reading took 9669.5 seconds", because the time ran from the original upload. A timing record is now opened when the upload or the Retry starts. Fixed in <code>c3a4658</code>.</p>
+<ul>
+<li><strong>An unknown invoice address showed raw JSON (ISSUE-004, low).</strong> The browser test left this for later</li>
+</ul>
+<p>because it was below its severity bar. The author chose to fix it in the final fixes, and the address now shows a normal page with a link back to the invoice list.</p>
+<h3>2. Security audit</h3>
+<p>The gstack <code>/cso</code> audit ran in its static mode, which reads the source and runs no code, with its ten-minute budget. Its runtime scanners were not used. Its coverage is <strong>partial</strong>:</p>
+<ul>
+<li>it reviewed the Docker Compose file closely;</li>
+<li>it relied on the reviews at each milestone and on the whole-project review below for the app's code;</li>
+<li>it could not read the git history.</li>
+</ul>
+<p>Its run record is under <code>~/.gstack/security/cso/</code> (run <code>1792550500864-7556fb6d75471e64</code>).</p>
+<ul>
+<li><strong>The reference database was reachable from the network with a known password (medium).</strong> The</li>
+</ul>
+<p>provided Postgres database and reference API were published on every network interface. The database's password (<code>ctref</code>) is in the public repository. On shared Wi-Fi, someone could log in and change catalog prices, and the app would then show false price differences or match lines to the wrong item. <strong>Fixed:</strong> both ports are now published on 127.0.0.1 only, as the app's own port already was. A test checks that every published port in <code>docker-compose.yml</code> is localhost-only.</p>
+<h3>3. Whole-project review by Codex</h3>
+<p>Codex reviewed the whole repository for security and for how the parts work together, which the per-milestone reviews could not see. It used the prompt <code>prompts/final-review.md</code> from Tortoise Lite, and its findings are in [<code>FINAL_REVIEW.md</code>](FINAL_REVIEW.md).</p>
+<ul>
+<li><strong>Reference database exposed beyond localhost (F1).</strong> This is the same problem the security audit</li>
+</ul>
+<p>found; it is fixed as described above.</p>
+<ul>
+<li><strong>The upload size limit applied only after the whole upload was stored (F2).</strong> The web framework</li>
+</ul>
+<p>writes an uploaded file to temporary storage before the app sees it. So a file far over the 10 MB limit could fill the disk before it was refused. <strong>Fixed:</strong> a guard placed in front of the app now counts the bytes as they arrive and refuses an upload over the limit straight away, whether or not the browser declared its size. The app's own 10 MB check on the file is unchanged.</p>
+<ul>
+<li><strong>Error text was written to the log (F3).</strong> The page already showed only the error's type, but the</li>
+</ul>
+<p>log still received the full error. A failed save can include values read from the invoice. <strong>Fixed:</strong> the log now records the error's type and where in the code it happened, never its text. The tests feed in an error containing "secret invoice text" and check that the phrase is not in the log.</p>
+<ul>
+<li><strong>No overall cap on paid Claude calls (F4).</strong> Each call is tried at most three times, but nothing</li>
+</ul>
+<p>limits how many uploads or Retries run in total. <strong>Left, by the author's choice.</strong> Adding a spending limit would take about 150 lines and a new stored budget record. The app is for one person on their own machine, where each upload costs about 5 cents. The README states this as a known limit and says a shared deployment would need a spending limit first.</p>
+<ul>
+<li><strong>Prices with fractions of a cent gave a "+$0.00" price flag (F5).</strong> An invoice price of $1.001</li>
+</ul>
+<p>against a catalog price of $1.00 was flagged as "+$0.00". <strong>Fixed:</strong> both prices are rounded to the cent (halves round up) before they are compared. So $1.001 against $1.00 is not flagged, and $1.006 against $1.00 is flagged as "+$0.01".</p>
+<ul>
+<li><strong>The cache threshold was fixed for one model (F6).</strong> The app sends the first group of lines alone to</li>
+</ul>
+<p>write Claude's prompt cache, but only when the shared catalog is long enough to cache. That minimum length was fixed at 512 tokens, the minimum for the default model, even though the model is a setting. <strong>Fixed:</strong> the minimum is now looked up for the configured model, using the values in Claude's prompt-caching documentation. A model that isn't in the list gets the largest minimum, 4,096 tokens, because setting it too high only skips the warm-up.</p>
+<ul>
+<li><strong>The settings example was missing two settings (F7).</strong> <code>.env.example</code> now also lists the data folder</li>
+</ul>
+<p>(<code>DATA_DIR</code>) and the allowed host names (<code>ALLOWED_HOSTS</code>). A test checks that every setting the app accepts is listed.</p>
+<ul>
+<li><strong>An uploaded file was left behind when saving the invoice failed (F8).</strong> The file is written to disk</li>
+</ul>
+<p>before the invoice record is saved. If the save failed, no record pointed at the file, so nothing would ever delete it. <strong>Fixed:</strong> a failed save now deletes the file.</p>
+<h3>Checks run again after the fixes</h3>
+<ul>
+<li><strong>Offline tests:</strong> all 279 pass.</li>
+<li><strong>The rebuilt app, by hand:</strong>
+<ul>
+<li>all three ports show as published on 127.0.0.1;</li>
+<li>an unknown invoice shows an HTML page with status 404;</li>
+<li>a 12 MB upload is refused with status 413;</li>
+<li>a normal sample upload still goes through;</li>
+<li>the reference API still answers on localhost.</li>
+</ul></li>
+<li>**Codex review of the fix commit <code>04fc7d7</code>.** Codex judged four fixes correct and complete: the</li>
+</ul>
+<p>localhost-only ports, the error logs, the settings example and the upload-file cleanup. It found three new bugs, which were fixed test-first in the commit that follows:</p>
+<ul>
+<li><strong>A catalog price under half a cent crashed the price check.</strong> Such a price rounded to $0.00, and</li>
+</ul>
+<p>the percentage then divided by zero. It is now treated like a zero price, which means no fixed price and no flag.</p>
+<ul>
+<li><strong>Some older models were missing from the cache table.</strong> These include Claude Sonnet 4.5 and Claude</li>
+</ul>
+<p>Opus 4.1, so they fell back to 4,096 tokens instead of their documented 1,024. They are now listed.</p>
+<ul>
+<li><strong>The JSON export answered "not found" in HTML.</strong> The new not-found page also caught the JSON</li>
+</ul>
+<p>download. Addresses ending in <code>.json</code> now get the error in JSON again.</p>
+<p>Codex also pointed out that the upload guard allows 10 MB plus 64 KB for the form around the file. A file just over 10 MB is therefore still received before the app's own check refuses it. That amount is small and fixed, so it was kept. A real upload adds far less than 64 KB, because that space only holds the file name and the form's separators.</p>
+<h3>Browser tests with Playwright</h3>
+<p>The author asked for the finished UI to be checked in a real browser after the final fixes. A repeatable Playwright test, <code>tests/browser/test_ui_browser.py</code>, now drives Chromium through the running app and the real Claude. It is skipped by default, like the live tests; run it with <code>.venv/bin/pytest -m browser</code>. It covers:</p>
+<ul>
+<li><strong>All four samples:</strong> each is uploaded and read. The test checks the suggested sponsor, study and</li>
+</ul>
+<p>site, confirms them, and checks the review summary and every line's catalog item against the answer key.</p>
+<ul>
+<li><strong>The study picker:</strong> it changes the sponsor and back, and checks that the study picker stays and</li>
+</ul>
+<p>refills. This was the high-severity browser-test problem (ISSUE-001).</p>
+<ul>
+<li><strong>Reviewing and finalizing:</strong> it searches the catalog and overrides a line, then undoes it. It</li>
+</ul>
+<p>finalizes with the open problems stated, downloads the JSON and checks it, and checks that a finalized invoice can't be changed.</p>
+<ul>
+<li><strong>The not-found page:</strong> an unknown invoice shows a page with a link back.</li>
+<li><strong>Phone width:</strong> at 375 pixels, no page scrolls sideways.</li>
+<li><strong>Console errors:</strong> any error on a page fails the test.</li>
+</ul>
+<p><strong>Result:</strong> all 8 pass, in about two minutes, costing about 20 cents. The first run failed one check. The cause was the test, not the app. Opening the finalize page of a finalized invoice correctly returns the "can't be changed" page with status 409, and Chrome logs every 409 as a console error. The test now checks for console errors before that deliberate visit, and checks the 409 itself.</p>
+<h3>Review against the PRD, the PRD review and the plan</h3>
+<p>At the author's request, a fresh Claude agent and a fresh Codex run read the PRD, the PRD review's literal requirements table and the plan, then checked the code, tests and README against them. Neither had seen the project before. Both found every required item built. They also found the following.</p>
+<ul>
+<li><strong>The matching prompt contained the samples' answers.</strong> This was the serious one. Its examples named</li>
+</ul>
+<p>the samples' own abbreviations ("Wk 4", "UA") and the large invoice's three expected no-match lines (parking, patient stipend, translation), and its price example was the medium invoice's IRB line. That made the 47-of-47 score partly a test of memory. <strong>Fixed, as the author chose:</strong> every example is now one that appears in no sample, and the tie-break rule is kept with a new example. This replaces the example the spec's tie-break rule gives (R39), so it is recorded as a proposed decision for the author to settle (D13). The live tests were rerun with the new prompt: 47 of 47, with both price flags and all three no-match lines. The browser tests were rerun too: all 8 pass.</p>
+<ul>
+<li>**Opening "change the sponsor, study or site" for an invoice that doesn't exist gave a server</li>
+</ul>
+<p>error.** Fixed: it now gives the not-found page.</p>
+<ul>
+<li><strong>Pressing Change after a catalog search without choosing an item showed raw JSON.</strong> Fixed: it now</li>
+</ul>
+<p>shows the normal refusal page, which says to choose an item or No match.</p>
+<ul>
+<li><strong>The timing table's request count left out the token-counting request.</strong> Each matching run makes</li>
+</ul>
+<p>one, before deciding whether to warm the cache. Fixed: it is now counted. The README's table was measured before the fix, so it now says it shows one fewer request per matching run.</p>
+<ul>
+<li><strong>README wording.</strong> Three passages were corrected:
+<ul>
+<li>it said a possible duplicate lowers confidence, but it only adds a warning;</li>
+<li>it said "nothing written to disk" for oversized uploads, which is now "at most about 10 MB";</li>
+<li>it did not say that the compose file needs Docker Compose 2.24 or later.</li>
+</ul></li>
+<li><strong>Records.</strong> The SQLAlchemy pin decision (D1) pointed to a root <code>DECISIONS.md</code> that doesn't exist;</li>
+</ul>
+<p>the pointer is removed. The plan said the status guard takes its lock with <code>BEGIN IMMEDIATE</code>, but the code uses an update that changes nothing, which takes the same lock. That change had no recorded decision, and it is now recorded as proposed (D14).</p>
+<ul>
+<li><strong>Delivery.</strong> GitHub was 7 commits behind, and the GitLab project is still private. The push and a</li>
+</ul>
+<p>fresh-clone check follow the author's approval of these final checks.</p>
+<p>Codex could not run the offline tests in its read-only sandbox. The Claude agent ran them: all 278 passed then, and all 279 pass after these fixes.</p>
+<h3>Glossary</h3>
+<ul>
+<li><strong>Playwright:</strong> a library that drives a real browser from a test, clicking and typing as a person</li>
+</ul>
+<p>would.</p>
+<ul>
+<li><strong>Console error:</strong> an error a web page reports in the browser's developer console, such as a failed</li>
+</ul>
+<p>request or a script crash.</p>
+<ul>
+<li><strong>Static mode:</strong> a security check that reads the code without running it.</li>
+<li><strong>Published port:</strong> a port Docker makes reachable from outside a container. Binding it to <code>127.0.0.1</code></li>
+</ul>
+<p>makes it reachable from this computer only.</p>
+<ul>
+<li><strong>Network interface:</strong> a connection the computer has to a network, such as Wi-Fi. Publishing a port on</li>
+</ul>
+<p>every interface makes it reachable from other devices on those networks.</p>
+<ul>
+<li><strong>Temporary storage:</strong> files the web framework writes while it is still receiving an upload.</li>
+<li><strong>Prompt cache:</strong> Claude can store the start of a prompt it has already seen, so later requests that</li>
+</ul>
+<p>begin the same way are faster and cheaper. It only works when that start is at least a model-specific minimum length.</p>
+<ul>
+<li><strong>Token:</strong> the unit Claude measures text in; roughly three quarters of a word.</li>
+<li><strong>htmx:</strong> a small JavaScript library that lets a page swap in a part of the page from the server.</li>
+<li><strong>Health score:</strong> the browser test's overall rating of the app, out of 100.</li>
+<li><strong>Test-first:</strong> writing a test that fails because of the problem, then changing the code until it</li>
+</ul>
+<p>passes.</p>
+<ul>
+<li><strong>Codex:</strong> OpenAI's coding model, used here as an independent reviewer from another company.</li>
+</ul>
 </section>
 </main>
 <script type="module">

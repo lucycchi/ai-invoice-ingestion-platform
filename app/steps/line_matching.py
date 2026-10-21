@@ -148,6 +148,7 @@ def run_matching(app, invoice_id: int) -> None:
     if groups:
         try:
             shared_tokens = claude.count_shared_tokens(shared)
+            tally.add(Usage(requests=1))  # counting tokens is a request to Claude too
         except Exception:  # counting is only an optimisation; without it, nothing is warmed
             shared_tokens = 0
         rest = groups

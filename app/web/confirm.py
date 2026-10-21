@@ -3,7 +3,7 @@
 import json
 from html import escape
 
-from fastapi import APIRouter, BackgroundTasks, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
@@ -162,6 +162,8 @@ def _match_counts(s, invoice_id: int) -> tuple[int, int]:
 def change_metadata_page(request: Request, invoice_id: int):
     with request.app.state.sessions() as s:
         invoice = s.get(Invoice, invoice_id)
+        if invoice is None:
+            raise HTTPException(404, "There's no invoice with that number.")
         if Status(invoice.status) not in CHANGEABLE:
             return conflict_page(request, invoice_id, Status(invoice.status))
         matches, overrides = _match_counts(s, invoice_id)

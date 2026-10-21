@@ -193,7 +193,10 @@ def test_search_results_need_a_choice(env):
     part = env.client.get(f"/invoices/{invoice_id}/catalog?q=ecg").text
     assert part.lstrip().startswith('<option value="" selected>Choose an item')
     line, _ = _line(env, invoice_id, 10)
-    assert _override(env, invoice_id, line.id, "").status_code == 422
+    response = _override(env, invoice_id, line.id, "")
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Choose a catalog item or No match." in response.text
     assert _line(env, invoice_id, 10)[1].override_kind == "none"
 
 

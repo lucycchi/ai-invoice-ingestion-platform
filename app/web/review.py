@@ -120,7 +120,7 @@ def _change_line(request: Request, invoice_id: int, line_id: int, change) -> Res
 
 
 @router.post("/invoices/{invoice_id}/lines/{line_id}/override")
-def override(request: Request, invoice_id: int, line_id: int, catalog_item_id: str = Form(...)):
+def override(request: Request, invoice_id: int, line_id: int, catalog_item_id: str = Form("")):  # "" (nothing chosen) gets the refusal page
     def change(s, match):
         if catalog_item_id == "none":
             item_id = None

@@ -152,7 +152,8 @@ def test_run_timing(env):
     invoice_id = env.run()
     run = env.matching_run(invoice_id)
     assert run.started_at and run.stored_at and run.stored_at >= run.started_at
-    assert run.claude_requests == 5 and run.outcome == "succeeded"
+    # Five matching requests plus the one that counts the shared prompt's tokens.
+    assert run.claude_requests == 6 and run.outcome == "succeeded"
 
 
 # Cycle 3: the cache decision
@@ -331,7 +332,7 @@ def test_unexpected_worker_error_still_records_the_run(env, caplog):
     env.claude.match = match
     invoice_id = env.run()
     run = env.matching_run(invoice_id)
-    assert run.claude_requests == 4 and run.outcome.startswith("failed")
+    assert run.claude_requests == 5 and run.outcome.startswith("failed")
     invoice = env.invoice(invoice_id)
     assert invoice.status == "matching_failed" and "Unexpected error (RuntimeError)" in invoice.status_reason
     assert "RuntimeError" in caplog.text and "secret invoice text" not in caplog.text

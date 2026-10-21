@@ -302,3 +302,8 @@ def test_sponsor_picker_fills_the_study_picker_in_place(env):
     # The form swaps its warnings with outerHTML, and htmx attributes are inherited: without its own
     # swap, the sponsor picker would replace the whole study <select> with bare <option>s.
     assert 'hx-target="#study-select"' in sponsor and 'hx-swap="innerHTML"' in sponsor
+
+
+def test_change_metadata_unknown_invoice_is_404(env):
+    client, _, _ = env
+    assert client.get("/invoices/999/change-metadata").status_code == 404

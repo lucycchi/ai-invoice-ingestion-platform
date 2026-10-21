@@ -15,7 +15,7 @@ can only propose a decision; only the author settles one.
   - [services/api/requirements.txt](services/api/requirements.txt): Only a lower bound on SQLAlchemy, so a fresh build installed SQLAlchemy 2.1.5.
   - [https://docs.sqlalchemy.org/en/21/changelog/migration_21.html](https://docs.sqlalchemy.org/en/21/changelog/migration_21.html): SQLAlchemy 2.1 makes a plain postgresql:// address load the psycopg version 3 driver by default instead of psycopg2.
 - **Choice:** Keep SQLAlchemy on the 2.0 series (sqlalchemy>=2.0.36,<2.1)
-- **Reason:** It is the smallest change to code we were given, it keeps the starter code running the way it was written and tested, and it touches one file. Already applied and committed; the API starts and its seed data matches the take-home instructions. This entry also appears in the root DECISIONS.md.
+- **Reason:** It is the smallest change to code we were given, it keeps the starter code running the way it was written and tested, and it touches one file. Already applied and committed; the API starts and its seed data matches the take-home instructions.
 
 ## D2: Which AI model provider should the app use to read invoices and match line items? The author has keys for both Anthropic (Claude) and OpenAI.
 
@@ -173,11 +173,38 @@ can only propose a decision; only the author settles one.
 - **Choice:** Keep groups, separate data fields, and a test that other lines are unaffected
 - **Reason:** No prompt design can guarantee isolation, and one request per line would likely break the latency target (D9) for little practical gain on a single-user demo. Separate fields plus an explicit test give checkable evidence. This changes the wording of the invoice-text safety rule (R54) in the approved spec from a guarantee to a tested property; no required item from the brief is left unmet.
 
+## D13: Should the matching prompt's worked examples come from the sample invoices, including the tie-break example the spec gives for price breaking a tie (R39)?
+
+- **Status:** proposed
+- **Proposed by:** Claude (claude-opus-5-5) on 2026-10-20
+- **Options:**
+  - Use examples that appear in no sample invoice, keeping the tie-break rule but with a new example
+  - Keep the sample-derived examples and disclose them in the README
+- **Research:**
+  - [app/prompts/matching_instructions.md](app/prompts/matching_instructions.md): The earlier prompt named the samples' abbreviations, their three no-match lines and their price mismatch.
+  - [tests/live/test_samples_live.py](tests/live/test_samples_live.py): Rerun with the neutral prompt on 2026-10-20: 47 of 47 lines matched, both price flags and all three no-match lines found.
+- **Choice:** Use examples that appear in no sample invoice, keeping the tie-break rule but with a new example
+- **Reason:** Examples taken from the samples made the live score partly a test of memory; the author chose neutral examples and a rerun. The rule the spec requires (price may break a tie but never decides a match) is unchanged, but its example is now a frozen-sample courier line rather than the spec's cold-chain shipping line, which is itself a sample line. The score stayed 47 of 47. No required item from the PRD review's table is affected.
+
+## D14: How should the status guard take SQLite's write lock before reading an invoice it will change (status guard task, Task 3)?
+
+- **Status:** proposed
+- **Proposed by:** Claude (claude-opus-5-5) on 2026-10-20
+- **Options:**
+  - A conditional update that changes nothing, which takes the write lock inside the normal transaction
+  - BEGIN IMMEDIATE, as the plan says
+- **Research:**
+  - [app/status.py](app/status.py): locked_invoice runs a no-change UPDATE on the invoice row, then re-reads it.
+  - [tests/test_status.py](tests/test_status.py): Concurrency tests check that two writers can't both pass the guard.
+- **Choice:** A conditional update that changes nothing, which takes the write lock inside the normal transaction
+- **Reason:** SQLAlchemy has already begun its own transaction by the time the guard runs, so a second BEGIN IMMEDIATE can't be issued without changing how every session starts. A no-change UPDATE takes the same write lock at the same moment and is covered by the concurrency tests. It was built this way but not recorded; the final review by a fresh agent and Codex pointed out the gap.
+
 ## Glossary
 
 - **Acknowledgment:** The user's explicit confirmation that they have seen the open problems, saved with the invoice.
 - **Answer key:** The expected result for each sample invoice, worked out from the generator script and the seed data.
 - **Background work:** Work the server keeps doing after it has answered the browser, so the page stays responsive.
+- **BEGIN IMMEDIATE:** a SQLite command that starts a transaction and takes the write lock straight away.
 - **Confidence level:** A label saying how sure the app is about a match: exact, likely, uncertain or not found.
 - **Cross-check:** Checking that the chosen sponsor, study and site fit together, using the reference API's records.
 - **Document block:** The way a PDF is attached to a request to Claude so the model can read it.
@@ -195,6 +222,7 @@ can only propose a decision; only the author settles one.
 - **Marked tests:** Tests tagged so they are skipped by default and run only when asked for, such as tests that cost money.
 - **Metadata:** The invoice's header facts: sponsor, study and protocol, site, invoice number and date.
 - **Model provider:** The company whose AI model the app calls over the internet, such as Anthropic or OpenAI.
+- **Overfitting:** tuning something so closely to its test cases that the test score no longer shows how it does on new cases.
 - **Override:** A choice by the user that replaces the AI's suggestion, saved alongside the original suggestion.
 - **Pass-through item:** A cost the site passes on at whatever it actually cost, such as shipping or a device, rather than at a fixed rate.
 - **Picker:** A control that lets the user choose a sponsor, study or site from the reference data.
@@ -214,3 +242,5 @@ can only propose a decision; only the author settles one.
 - **Token:** A small chunk of text, roughly three-quarters of a word, used to measure and bill model input and output.
 - **Tolerance:** An allowed amount of difference below which no flag is raised.
 - **Version pin:** A rule in requirements.txt that limits which versions of a library may be installed.
+- **Worked example:** a sample case written into a prompt to show the model how to apply a rule.
+- **Write lock:** SQLite's guarantee that only one connection can change the database at a time.

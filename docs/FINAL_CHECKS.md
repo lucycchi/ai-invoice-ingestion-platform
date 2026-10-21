@@ -14,7 +14,7 @@ code changed.
 | Security audit (gstack `/cso`, static mode) | 1 problem | 1 | none |
 | Whole-project review (Codex, `gpt-6-sol`) | 8 problems, one of them the audit's | 7 | the overall cap on paid Claude calls |
 
-At the end, all 278 offline tests pass (`.venv/bin/pytest`). The live tests against the real Claude
+At the end, all 279 offline tests pass (`.venv/bin/pytest`). The live tests against the real Claude
 scored 47 of 47 lines earlier in this stage. After the final fixes, the rebuilt app was checked by hand
 against the running stack.
 
@@ -97,7 +97,7 @@ and its findings are in [`FINAL_REVIEW.md`](FINAL_REVIEW.md).
 
 ## Checks run again after the fixes
 
-- **Offline tests:** all 278 pass.
+- **Offline tests:** all 279 pass.
 - **The rebuilt app, by hand:**
   - all three ports show as published on 127.0.0.1;
   - an unknown invoice shows an HTML page with status 404;
@@ -143,6 +143,41 @@ running app and the real Claude. It is skipped by default, like the live tests; 
 The cause was the test, not the app. Opening the finalize page of a finalized invoice correctly
 returns the "can't be changed" page with status 409, and Chrome logs every 409 as a console error. The
 test now checks for console errors before that deliberate visit, and checks the 409 itself.
+
+## Review against the PRD, the PRD review and the plan
+
+At the author's request, a fresh Claude agent and a fresh Codex run read the PRD, the PRD review's
+literal requirements table and the plan, then checked the code, tests and README against them. Neither
+had seen the project before. Both found every required item built. They also found the following.
+
+- **The matching prompt contained the samples' answers.** This was the serious one. Its examples named
+  the samples' own abbreviations ("Wk 4", "UA") and the large invoice's three expected no-match lines
+  (parking, patient stipend, translation), and its price example was the medium invoice's IRB line. That
+  made the 47-of-47 score partly a test of memory. **Fixed, as the author chose:** every example is now
+  one that appears in no sample, and the tie-break rule is kept with a new example. This replaces the
+  example the spec's tie-break rule gives (R39), so it is recorded as a proposed decision for the author
+  to settle (D13). The live tests were rerun with the new prompt: 47 of 47, with both price flags and all
+  three no-match lines. The browser tests were rerun too: all 8 pass.
+- **Opening "change the sponsor, study or site" for an invoice that doesn't exist gave a server
+  error.** Fixed: it now gives the not-found page.
+- **Pressing Change after a catalog search without choosing an item showed raw JSON.** Fixed: it now
+  shows the normal refusal page, which says to choose an item or No match.
+- **The timing table's request count left out the token-counting request.** Each matching run makes
+  one, before deciding whether to warm the cache. Fixed: it is now counted. The README's table was
+  measured before the fix, so it now says it shows one fewer request per matching run.
+- **README wording.** Three passages were corrected:
+  - it said a possible duplicate lowers confidence, but it only adds a warning;
+  - it said "nothing written to disk" for oversized uploads, which is now "at most about 10 MB";
+  - it did not say that the compose file needs Docker Compose 2.24 or later.
+- **Records.** The SQLAlchemy pin decision (D1) pointed to a root `DECISIONS.md` that doesn't exist;
+  the pointer is removed. The plan said the status guard takes its lock with `BEGIN IMMEDIATE`, but the
+  code uses an update that changes nothing, which takes the same lock. That change had no recorded
+  decision, and it is now recorded as proposed (D14).
+- **Delivery.** GitHub was 7 commits behind, and the GitLab project is still private. The push and a
+  fresh-clone check follow the author's approval of these final checks.
+
+Codex could not run the offline tests in its read-only sandbox. The Claude agent ran them: all 278
+passed then, and all 279 pass after these fixes.
 
 ## Glossary
 
