@@ -733,7 +733,7 @@ Steps:
 ## Milestone 4: Finalizing, proof on the samples, and delivery
 
 - [x] Task 12: finalizing and the JSON download. Requirements: R4, R33, R49, R50
-- [ ] Task 13: live tests on the samples, image files and the hostile-text invoice. Requirements: R54, R55, R56, R57
+- [x] Task 13: live tests on the samples, image files and the hostile-text invoice. Requirements: R54, R55, R56, R57
 - [ ] Task 14: timings, README, write-up and delivery. Requirements: R58, R59, R60, R63
 
 What the author can look at: finalize each sample and download its JSON; run `pytest -m live` and see
