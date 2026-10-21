@@ -1,0 +1,46 @@
+<h2>Confirm the sponsor, study and site</h2>
+<p class="muted">Nothing happens until you confirm. Check each suggestion, change it if needed, then press Confirm.</p>
+{% if reference_error %}
+  <div class="message">{{ reference_error }}. Reload the page to try again.</div>
+{% else %}
+<form id="confirm-form" action="/invoices/{{ invoice.id }}/confirm" method="post"
+      hx-get="/invoices/{{ invoice.id }}/warnings" hx-trigger="change" hx-target="#warnings" hx-swap="outerHTML">
+  <table>
+    <thead><tr><th>Field</th><th>On the invoice</th><th>Suggestion</th><th>Your choice</th></tr></thead>
+    <tbody>
+    {% for field, printed, options in [("sponsor", header.sponsor_name, sponsors), ("study", (header.study_name or "") ~ (" · " ~ header.protocol_number if header.protocol_number else ""), studies), ("site", header.site_name, sites)] %}
+      {% set s = suggestions.get(field) %}
+      <tr>
+        <td>{{ field|capitalize }}</td>
+        <td>{{ printed or "(not printed)" }}</td>
+        <td>
+          {% if s and s.id %}<strong>{{ s.name }}</strong>{% endif %}
+          <span class="status confidence-{{ s.confidence if s else 'not_found' }}">{{ (s.confidence if s else "not_found")|replace("_", " ") }}</span>
+          {% for r in (s.reasons if s else []) %}<div class="muted">{{ r }}</div>{% endfor %}
+        </td>
+        <td>
+          {% if field == "sponsor" %}
+          <select name="sponsor_id" required hx-get="/invoices/{{ invoice.id }}/studies" hx-trigger="change" hx-target="#study-select" hx-include="this">
+            <option value="">Choose a sponsor…</option>
+            {% for o in options %}<option value="{{ o.id }}"{% if o.id == chosen.sponsor %} selected{% endif %}>{{ o.name }}</option>{% endfor %}
+          </select>
+          {% elif field == "study" %}
+          <select id="study-select" name="study_id" required>
+            {% with studies=options, chosen=chosen.study %}{% include "_study_options.html" %}{% endwith %}
+          </select>
+          {% if offer %}<div><a href="/invoices/{{ invoice.id }}?sponsor_id={{ offer.sponsor.id }}&study_id={{ offer.study.id }}">Use {{ offer.sponsor.name }}</a> <span class="muted">({{ offer.study.name }} belongs to {{ offer.sponsor.name }})</span></div>{% endif %}
+          {% else %}
+          <select name="site_id" required>
+            <option value="">Choose a site…</option>
+            {% for o in options %}<option value="{{ o.id }}"{% if o.id == chosen.site %} selected{% endif %}>{{ o.name }} ({{ o.city }}, {{ o.state }})</option>{% endfor %}
+          </select>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% include "_warnings.html" %}
+  <p><button type="submit">Confirm</button></p>
+</form>
+{% endif %}

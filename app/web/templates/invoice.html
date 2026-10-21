@@ -32,4 +32,6 @@
 </table>
 {% endif %}
 {% endblock %}
+{% if invoice.status == "awaiting_confirmation" and header %}{% include "_confirm.html" %}{% endif %}
+{% if invoice.status in ("matching_failed", "in_review") %}<p><a href="/invoices/{{ invoice.id }}/change-metadata">Change the sponsor, study or site</a></p>{% endif %}
 {% endblock %}

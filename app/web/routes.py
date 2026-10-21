@@ -51,10 +51,20 @@ def upload_page(request: Request, message: str | None = None, status_code: int =
     )
 
 
+CONFLICT_SENTENCES = {
+    Status.EXTRACTING: "The invoice is still being read.",
+    Status.MATCHING: "Matching line items is already running.",
+    Status.FINALIZED: "This invoice is finalized and can't be changed.",
+}
+
+
 def conflict_page(request: Request, invoice_id: int, current: Status | None):
-    label = STATUS_LABELS.get(current, "unknown") if current else "unknown"
+    if current in CONFLICT_SENTENCES:
+        sentence = CONFLICT_SENTENCES[current]
+    else:
+        sentence = f"This invoice is currently: {STATUS_LABELS[current]}." if current else "This invoice doesn't exist."
     return templates.TemplateResponse(
-        request, "conflict.html", {"invoice_id": invoice_id, "label": label}, status_code=409
+        request, "conflict.html", {"invoice_id": invoice_id, "sentence": sentence}, status_code=409
     )
 
 
@@ -109,7 +119,7 @@ def progress(request: Request, invoice_id: int):
 
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)
-def invoice_page(request: Request, invoice_id: int):
+def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = None, study_id: int | None = None):
     with _sessions(request)() as s:
         invoice = s.get(Invoice, invoice_id)
         if invoice is None:
@@ -118,10 +128,16 @@ def invoice_page(request: Request, invoice_id: int):
         lines = s.query(LineItem).filter_by(invoice_id=invoice_id).order_by(LineItem.position).all()
         runs = s.query(Run).filter_by(invoice_id=invoice_id).order_by(Run.id).all()
     reading = next((r for r in reversed(runs) if r.step == "extraction"), None)
+    confirming = {}
+    if invoice.status == Status.AWAITING_CONFIRMATION:
+        from app.web.confirm import confirm_context
+
+        confirming = confirm_context(request, invoice_id, sponsor_id, study_id)
     return templates.TemplateResponse(
         request,
         "invoice.html",
         {
+            **confirming,
             "invoice": invoice,
             "header": json.loads(extraction.header) if extraction else None,
             "extraction": extraction,
