@@ -5,20 +5,20 @@
 {% else %}
 <form id="confirm-form" action="/invoices/{{ invoice.id }}/confirm" method="post"
       hx-get="/invoices/{{ invoice.id }}/warnings" hx-trigger="change" hx-target="#warnings" hx-swap="outerHTML">
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table class="cards">
     <thead><tr><th>Field</th><th>On the invoice</th><th>Suggestion</th><th>Your choice</th></tr></thead>
     <tbody>
     {% for field, printed, options in [("sponsor", header.sponsor_name, sponsors), ("study", (header.study_name or "") ~ (" · " ~ header.protocol_number if header.protocol_number else ""), studies), ("site", header.site_name, sites)] %}
       {% set s = suggestions.get(field) %}
       <tr>
-        <td>{{ field|capitalize }}</td>
-        <td>{{ printed or "(not printed)" }}</td>
-        <td>
+        <td data-label="Field"><strong>{{ field|capitalize }}</strong></td>
+        <td data-label="On the invoice">{{ printed or "(not printed)" }}</td>
+        <td data-label="Suggestion">
           {% if s and s.id %}<strong>{{ s.name }}</strong>{% endif %}
           <span class="status confidence-{{ s.confidence if s else 'not_found' }}">{{ (s.confidence if s else "not_found")|replace("_", " ") }}</span>
           {% for r in (s.reasons if s else []) %}<div class="muted">{{ r }}</div>{% endfor %}
         </td>
-        <td>
+        <td data-label="Your choice">
           {% if field == "sponsor" %}
           <select name="sponsor_id" required hx-get="/invoices/{{ invoice.id }}/studies" hx-trigger="change" hx-target="#study-select" hx-swap="innerHTML" hx-include="this">
             <option value="">Choose a sponsor…</option>

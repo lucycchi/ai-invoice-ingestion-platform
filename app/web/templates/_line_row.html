@@ -1,14 +1,15 @@
 {% set line, match = row.line, row.match %}
 <tr id="line-{{ line.position }}" class="line-row{% if not match %} pending{% elif not row.current %} no-match{% endif %}{% if row.flag %} flagged{% endif %}">
-  <td>{{ line.position }}</td>
-  <td>{{ line.description or "" }}</td>
-  <td class="num">{{ "%g"|format(line.quantity) if line.quantity is not none else "—" }}</td>
-  <td class="num">{{ "${:,.2f}".format(line.unit_price) if line.unit_price is not none else "—" }}</td>
-  <td class="num">{{ "${:,.2f}".format(line.amount) if line.amount is not none else "—" }}</td>
+  <td data-label="#">{{ line.position }}</td>
+  <td data-label="Description">{{ line.description or "" }}</td>
+  <td class="num" data-label="Qty">{{ "%g"|format(line.quantity) if line.quantity is not none else "—" }}</td>
+  <td class="num" data-label="Unit price">{{ "${:,.2f}".format(line.unit_price) if line.unit_price is not none else "—" }}</td>
+  <td class="num" data-label="Amount">{{ "${:,.2f}".format(line.amount) if line.amount is not none else "—" }}</td>
   {% if not match %}
-  <td colspan="{{ 4 if editable else 3 }}"><strong>No result yet</strong> <span class="muted">· Retry sends this line to Claude again.</span></td>
+  <td colspan="{{ 4 if editable else 3 }}" data-label="Match"><strong>No result yet</strong> <span class="muted">· Retry sends this line to Claude again.</span></td>
   {% else %}
-  <td>
+  {% set superseded = " superseded" if match.override_kind != "none" else "" %}
+  <td data-label="Catalog item">
     {% if row.current %}<strong>{{ row.current.item_code }}</strong> {{ row.current.description }}{% else %}<strong>No match</strong>{% endif %}
     {% if match.override_kind != "none" %}
       <div class="changed">Changed by a person · AI suggested
@@ -16,12 +17,12 @@
     {% endif %}
     {% if row.flag %}<div class="flag">{{ row.flag }}</div>{% endif %}
   </td>
-  <td><span class="status">{{ match.ai_confidence }}</span></td>
-  <td class="muted">{{ match.ai_reason }}
+  <td class="ai{{ superseded }}" data-label="AI confidence"><span class="status">{{ match.ai_confidence }}</span></td>
+  <td class="muted ai{{ superseded }}" data-label="AI reason">{{ match.ai_reason }}
     {% if row.alternatives %}<div>Also possible: {% for a in row.alternatives %}{{ a.item_code }}{% if not loop.last %}, {% endif %}{% endfor %}</div>{% endif %}
   </td>
   {% if editable %}
-  <td>
+  <td data-label="Change">
     <form action="/invoices/{{ invoice.id }}/lines/{{ line.id }}/override" method="post" class="picker">
       <input type="search" name="q" placeholder="Search catalog" aria-label="Search the catalog for line {{ line.position }}"
              hx-get="/invoices/{{ invoice.id }}/catalog" hx-trigger="input changed delay:250ms" hx-target="#picker-{{ line.id }}">
@@ -31,10 +32,10 @@
         {% set choices = ([row.current] if row.current else []) + ([row.ai_item] if row.ai_item and row.ai_item != row.current else []) + row.alternatives %}
         {% for a in choices %}<option value="{{ a.catalog_item_id }}"{% if loop.first and row.current %} selected{% endif %}>{{ a.item_code }} · {{ a.description }}</option>{% endfor %}
       </select>
-      <button type="submit">Change</button>
+      <button type="submit" class="secondary">Change</button>
     </form>
     {% if match.override_kind != "none" %}
-    <form action="/invoices/{{ invoice.id }}/lines/{{ line.id }}/undo" method="post"><button type="submit">Undo</button></form>
+    <form action="/invoices/{{ invoice.id }}/lines/{{ line.id }}/undo" method="post"><button type="submit" class="secondary">Undo</button></form>
     {% endif %}
   </td>
   {% endif %}

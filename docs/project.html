@@ -48,7 +48,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <main>
 <header>
 <h1>AI Invoice Ingestion Platform</h1>
-<p class="stage">Current stage: Final checks (needs your approval before moving on)</p>
+<p class="stage">Current stage: Done</p>
 </header>
 <section id="summary">
 <h2>Summary</h2>
@@ -1963,7 +1963,7 @@ tests/test_upload.py .............                                       [100%]
 <tr><td>Whole-project review (Codex, <code>gpt-6-sol</code>)</td><td>8 problems, one of them the audit's</td><td>7</td><td>the overall cap on paid Claude calls</td></tr>
 </tbody>
 </table>
-<p>At the end, all 279 offline tests pass (<code>.venv/bin/pytest</code>). The live tests against the real Claude scored 47 of 47 lines earlier in this stage. After the final fixes, the rebuilt app was checked by hand against the running stack.</p>
+<p>At the end, all 285 offline tests pass (<code>.venv/bin/pytest</code>). The live tests against the real Claude scored 47 of 47 lines earlier in this stage. After the final fixes, the rebuilt app was checked by hand against the running stack.</p>
 <h3>1. Browser test</h3>
 <p>The gstack <code>/qa</code> skill drove a headless browser through the whole flow on http://localhost:8080: uploading each sample, confirming the sponsor, study and site, reviewing and overriding matches, then finalizing and downloading. It also checked phone-width layouts and the error paths. Its report is in <code>.gstack/qa-reports/run-20261021T023335Z/</code>, and its health score went from 92 to 99. That score is provisional, because performance and accessibility were not scored separately.</p>
 <ul>
@@ -2108,6 +2108,48 @@ tests/test_upload.py .............                                       [100%]
 </ul>
 <p>fresh-clone check follow the author's approval of these final checks.</p>
 <p>Codex could not run the offline tests in its read-only sandbox. The Claude agent ran them: all 278 passed then, and all 279 pass after these fixes.</p>
+<h3>Visual review of every screen</h3>
+<p>After the project was approved, the author asked whether the UI also makes sense and looks good, which the functional browser tests can't judge. Playwright took screenshots of every screen at desktop width (1,280 pixels) and phone width (375 pixels). Claude then looked at each one. The screens covered were:</p>
+<ul>
+<li>the invoice list, reading, confirm (including the mismatched invoice) and matching;</li>
+<li>review, an overridden line, finalize and the finalized invoice;</li>
+<li>change metadata, the refusal page, not-found and the conflict page.</li>
+</ul>
+<p>The wording, the self-explaining suggestions, the summaries and the shading of no-match lines worked well. Ten problems were found, and the author chose to fix all of them:</p>
+<ol>
+<li><strong>The confirmed sponsor, study and site never appeared after confirming.</strong> The review and finalized</li>
+</ol>
+<p>pages now show them under the invoice heading.</p>
+<ol>
+<li><strong>The duplicate warning repeated once for every earlier copy.</strong> The mismatched invoice showed five</li>
+</ol>
+<p>identical boxes. Earlier copies now give one warning that says how many there are.</p>
+<ol>
+<li><strong>An overridden line kept the AI's confidence and reason beside the person's choice</strong>, which read as</li>
+</ol>
+<p>a contradiction. Those columns are now headed "AI confidence" and "AI reason", and they fade once a person changes the line.</p>
+<ol>
+<li><strong>The price-flagged line was easy to miss.</strong> Flagged rows are now shaded with an orange edge.</li>
+<li><strong>On a phone, the important columns were off-screen to the right.</strong> The confirm and review tables now</li>
+</ol>
+<p>become stacked, labelled cards on narrow screens. The browser test checks that the pickers, the Change button and the price flag are all on screen at phone width.</p>
+<ol>
+<li><strong>The refusal page for a line change was titled "Confirm wasn't accepted".</strong> It now says "That change</li>
+</ol>
+<p>wasn't made".</p>
+<ol>
+<li><strong>27 large blue Change buttons dominated the review page.</strong> Change and Undo are now smaller outlined</li>
+</ol>
+<p>buttons. Confirm and Finalize stay as the main actions.</p>
+<ol>
+<li><strong>Timestamps were raw</strong>, such as "2026-10-21T03:26:40.796Z". They now read "2026-10-21 03:26 UTC".</li>
+<li><strong>A finalized invoice put its status and Download JSON at the very bottom.</strong> Both are now at the</li>
+</ol>
+<p>top.</p>
+<ol>
+<li><strong>Buttons and links touched with no gap.</strong> They are now spaced apart.</li>
+</ol>
+<p>The fixes that change what a page says were made test-first, in <code>tests/test_ui_polish.py</code>. The visual ones were checked by retaking the screenshots. All 285 offline tests and all 8 browser tests pass.</p>
 <h3>Glossary</h3>
 <ul>
 <li><strong>Playwright:</strong> a library that drives a real browser from a test, clicking and typing as a person</li>

@@ -29,6 +29,14 @@ STATUS_LABELS = {
 }
 templates.env.globals["status_label"] = lambda status: STATUS_LABELS[Status(status)]
 
+
+def readable_time(stamp: str | None) -> str:
+    """'2026-10-21T03:26:40.796Z' as '2026-10-21 03:26 UTC'."""
+    return f"{stamp[:10]} {stamp[11:16]} UTC" if stamp else ""
+
+
+templates.env.filters["when"] = readable_time
+
 router = APIRouter()
 
 
@@ -177,6 +185,7 @@ def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = Non
             "lines": lines,
             "reading_seconds": seconds_between(reading.started_at, reading.stored_at) if reading else None,
             "from_matching": from_ == "matching",
+            "confirmed": json.loads(invoice.confirmed_names) if invoice.confirmed_names else None,
             "finalized": {"text": json.loads(invoice.finalize_summary)["text"], "at": invoice.finalized_at}
             if invoice.finalize_summary else None,
         },

@@ -26,6 +26,30 @@
     .picker { display: flex; gap: .3rem; flex-wrap: wrap; }
     .picker select, .picker input { max-width: 14rem; }
     button, .button { background: var(--accent); color: #fff; border: 0; padding: .5rem 1rem; border-radius: 4px; cursor: pointer; font: inherit; text-decoration: none; }
+    button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--accent); padding: .25rem .7rem; font-size: .9rem; }
+    button + a, .button + a { margin-left: .9rem; }
+    select { font: inherit; padding: .2rem; max-width: 100%; }
+    .confirmed { margin-top: -.25rem; }
+    .line-row.flagged { background: #fdf6ee; }
+    .line-row.flagged td:first-child { box-shadow: inset 4px 0 var(--warn); }
+    td.ai.superseded { opacity: .5; }
+    td form + form { margin-top: .3rem; }
+    /* On a narrow screen each row of a card table becomes a stacked card, labelled field by field. */
+    @media (max-width: 640px) {
+      table.cards, table.cards tbody { display: block; }
+      table.cards thead { display: none; }
+      table.cards select { width: 100%; }
+      table.cards tr { display: block; border-bottom: 1px solid var(--line); padding: .5rem 0; }
+      table.cards td { display: block; border: 0; padding: .15rem 0; text-align: left; }
+      table.cards td[data-label]::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--muted); font-weight: 600; }
+      table.cards td.num { display: inline-block; margin-right: 1.5rem; }
+      table.cards td[data-label="Field"]::before { display: none; }
+      table.cards td[data-label="#"] { font-weight: 600; }
+      table.cards td[data-label="#"]::before { content: "Line"; display: inline; margin-right: .4rem; }
+      .line-row.flagged td:first-child { box-shadow: none; }
+      .line-row.flagged { box-shadow: inset 4px 0 var(--warn); padding-left: .6rem; }
+      .picker select, .picker input { max-width: 100%; width: 100%; }
+    }
   </style>
 </head>
 <body>

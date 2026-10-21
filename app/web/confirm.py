@@ -69,13 +69,18 @@ def _warnings(request: Request, invoice_id: int, study_id, site_id, data) -> lis
                     Invoice.confirmed_site_id == site_id,
                     Invoice.status.in_([status.value for status in CONFIRMED]),
                 )
+                copies = []
                 for other in s.scalars(earlier):
                     theirs = s.query(Extraction).filter_by(invoice_id=other.id).first()
                     if theirs and json.loads(theirs.header).get("invoice_number") == number:
-                        warnings.append(
-                            f"An earlier upload, {other.original_filename}, has the same invoice number "
-                            f"{number} and the same site. This may be a duplicate."
-                        )
+                        copies.append(other.original_filename)
+                if len(copies) == 1:
+                    warnings.append(f"An earlier upload, {copies[0]}, has the same invoice number {number} "
+                                    "and the same site. This may be a duplicate.")
+                elif copies:
+                    files = ", ".join(dict.fromkeys(copies))  # each file name once, in order
+                    warnings.append(f"{len(copies)} earlier uploads ({files}) have the same invoice number "
+                                    f"{number} and the same site. This may be a duplicate.")
     return warnings
 
 
@@ -100,7 +105,7 @@ def warnings(request: Request, invoice_id: int, sponsor_id: int | None = None, s
 
 def _refuse(request: Request, invoice_id: int, message: str, status_code: int):
     return templates.TemplateResponse(
-        request, "refused.html", {"invoice_id": invoice_id, "message": message}, status_code=status_code
+        request, "refused.html", {"invoice_id": invoice_id, "message": message, "title": "Confirm wasn't accepted"}, status_code=status_code
     )
 
 

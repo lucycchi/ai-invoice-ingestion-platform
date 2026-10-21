@@ -78,7 +78,7 @@ What to expect from each sample:
 
 ```bash
 python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # Python 3.13; or use uv
-.venv/bin/pytest              # 279 tests; free and offline: Claude and the reference API are stand-ins
+.venv/bin/pytest              # 285 tests; free and offline: Claude and the reference API are stand-ins
 .venv/bin/pytest -m live -s   # the live tests: real Claude, the running reference API (start it first)
 .venv/bin/pytest -m browser  # browser tests: Playwright drives Chromium through the running app (docker compose up first)
 ```

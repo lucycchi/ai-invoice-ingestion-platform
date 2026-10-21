@@ -134,9 +134,27 @@ def test_unknown_invoice_page(page: Page):
     expect(page.get_by_role("button", name="Upload and read")).to_be_visible()
 
 
+def _inside_screen(locator) -> bool:
+    box = locator.bounding_box()
+    return box is not None and box["x"] >= 0 and box["x"] + box["width"] <= 375
+
+
 def test_phone_width_has_no_sideways_scroll(page: Page):
     page.set_viewport_size({"width": 375, "height": 800})
-    url = upload_and_confirm(page, "large_invoice")
+    expected = EXPECTED["large_invoice"]
+    page.goto(APP)
+    page.set_input_files("#file", ROOT / "sample-invoices" / expected["file"])
+    page.get_by_role("button", name="Upload and read").click()
+    expect(page.locator("#confirm-form")).to_be_visible(timeout=READING)
+    # The pickers are on screen, not hidden off to the right.
+    for field in ("sponsor", "study", "site"):
+        assert _inside_screen(page.locator(f"select[name={field}_id]")), field
+    url = page.url.split("?")[0]
+    page.get_by_role("button", name="Confirm").click()
+    expect(page.locator("p.summary")).to_be_visible(timeout=READING)
+    row = page.locator("#line-20")
+    assert _inside_screen(row.get_by_role("button", name="Change"))
+    assert _inside_screen(row.get_by_text("Invoice $475.00, catalog $450.00"))
     for address in (APP, url, url + "/finalize"):
         page.goto(address)
         assert page.evaluate("document.documentElement.scrollWidth") <= 375, address

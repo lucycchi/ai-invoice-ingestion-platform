@@ -113,7 +113,8 @@ def _change_line(request: Request, invoice_id: int, line_id: int, change) -> Res
             if refused.status_code == 404:
                 raise HTTPException(404, refused.message)
             return templates.TemplateResponse(
-                request, "refused.html", {"invoice_id": invoice_id, "message": refused.message},
+                request, "refused.html",
+                {"invoice_id": invoice_id, "message": refused.message, "title": "That change wasn't made"},
                 status_code=refused.status_code,
             )
     return RedirectResponse(f"/invoices/{invoice_id}#line-{line.position}", status_code=303)

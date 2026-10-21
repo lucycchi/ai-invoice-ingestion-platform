@@ -14,7 +14,7 @@ code changed.
 | Security audit (gstack `/cso`, static mode) | 1 problem | 1 | none |
 | Whole-project review (Codex, `gpt-6-sol`) | 8 problems, one of them the audit's | 7 | the overall cap on paid Claude calls |
 
-At the end, all 279 offline tests pass (`.venv/bin/pytest`). The live tests against the real Claude
+At the end, all 285 offline tests pass (`.venv/bin/pytest`). The live tests against the real Claude
 scored 47 of 47 lines earlier in this stage. After the final fixes, the rebuilt app was checked by hand
 against the running stack.
 
@@ -178,6 +178,42 @@ had seen the project before. Both found every required item built. They also fou
 
 Codex could not run the offline tests in its read-only sandbox. The Claude agent ran them: all 278
 passed then, and all 279 pass after these fixes.
+
+## Visual review of every screen
+
+After the project was approved, the author asked whether the UI also makes sense and looks good, which
+the functional browser tests can't judge. Playwright took screenshots of every screen at desktop width
+(1,280 pixels) and phone width (375 pixels). Claude then looked at each one. The screens covered were:
+
+- the invoice list, reading, confirm (including the mismatched invoice) and matching;
+- review, an overridden line, finalize and the finalized invoice;
+- change metadata, the refusal page, not-found and the conflict page.
+
+The wording, the self-explaining suggestions, the summaries and the shading of no-match lines worked
+well. Ten problems were found, and the author chose to fix all of them:
+
+1. **The confirmed sponsor, study and site never appeared after confirming.** The review and finalized
+   pages now show them under the invoice heading.
+2. **The duplicate warning repeated once for every earlier copy.** The mismatched invoice showed five
+   identical boxes. Earlier copies now give one warning that says how many there are.
+3. **An overridden line kept the AI's confidence and reason beside the person's choice**, which read as
+   a contradiction. Those columns are now headed "AI confidence" and "AI reason", and they fade once a
+   person changes the line.
+4. **The price-flagged line was easy to miss.** Flagged rows are now shaded with an orange edge.
+5. **On a phone, the important columns were off-screen to the right.** The confirm and review tables now
+   become stacked, labelled cards on narrow screens. The browser test checks that the pickers, the
+   Change button and the price flag are all on screen at phone width.
+6. **The refusal page for a line change was titled "Confirm wasn't accepted".** It now says "That change
+   wasn't made".
+7. **27 large blue Change buttons dominated the review page.** Change and Undo are now smaller outlined
+   buttons. Confirm and Finalize stay as the main actions.
+8. **Timestamps were raw**, such as "2026-10-21T03:26:40.796Z". They now read "2026-10-21 03:26 UTC".
+9. **A finalized invoice put its status and Download JSON at the very bottom.** Both are now at the
+   top.
+10. **Buttons and links touched with no gap.** They are now spaced apart.
+
+The fixes that change what a page says were made test-first, in `tests/test_ui_polish.py`. The visual
+ones were checked by retaking the screenshots. All 285 offline tests and all 8 browser tests pass.
 
 ## Glossary
 

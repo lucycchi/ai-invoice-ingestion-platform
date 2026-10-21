@@ -18,7 +18,7 @@
       <td><a href="/invoices/{{ invoice.id }}">{{ invoice.original_filename }}</a></td>
       <td>{{ numbers.get(invoice.id) or "" }}</td>
       <td><span class="status">{{ status_label(invoice.status) }}</span></td>
-      <td class="muted">{{ invoice.uploaded_at }}</td>
+      <td class="muted">{{ invoice.uploaded_at|when }}</td>
     </tr>
   {% endfor %}
   </tbody>

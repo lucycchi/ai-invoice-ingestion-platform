@@ -1,7 +1,7 @@
 <h2>Line items</h2>
 <p class="summary"><strong>{{ summary.matched }} matched, {{ summary.no_match }} no match, {{ summary.price_flags }} price flag{{ "" if summary.price_flags == 1 else "s" }}, {{ summary.overridden }} overridden</strong></p>
-<div class="table-wrap"><table class="review">
-  <thead><tr><th>#</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Catalog item</th><th>Confidence</th><th>Reason</th>{% if editable %}<th>Change</th>{% endif %}</tr></thead>
+<div class="table-wrap"><table class="review cards">
+  <thead><tr><th>#</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th><th>Catalog item</th><th>AI confidence</th><th>AI reason</th>{% if editable %}<th>Change</th>{% endif %}</tr></thead>
   <tbody>
   {% for row in rows %}{% include "_line_row.html" %}{% endfor %}
   </tbody>
