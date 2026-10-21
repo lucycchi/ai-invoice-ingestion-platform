@@ -34,9 +34,15 @@
       "date": "2026-10-20",
       "tag": "tortoise/milestone-2",
       "milestone": 2
+    },
+    {
+      "stage": "gate",
+      "date": "2026-10-20",
+      "tag": "tortoise/milestone-3",
+      "milestone": 3
     }
   ],
-  "milestone": 2,
+  "milestone": 3,
   "milestones": 4,
   "board": {
     "number": 5,
@@ -79,43 +85,43 @@
         "issue": 5,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvs0",
         "title": "Claude client with structured answers, retries and usage counts (Task 5)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "6": {
         "issue": 6,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvv8",
         "title": "Extraction step, arithmetic checks and progress page (Task 6)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "7": {
         "issue": 7,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv0M",
         "title": "Metadata matching rules (Task 7)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "8": {
         "issue": 8,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv3k",
         "title": "Confirmation screen, warnings and the gate (Task 8)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "9": {
         "issue": 9,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv7s",
         "title": "Line matching step with groups, cache, checks and retries (Task 9)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "10": {
         "issue": 10,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv-g",
         "title": "Price flags (Task 10)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "11": {
         "issue": 11,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwB4",
         "title": "Review screen with progress, overrides and on-screen timing (Task 11)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "12": {
         "issue": 12,
@@ -145,8 +151,8 @@
     }
   },
   "last_gate": {
-    "milestone": 2,
+    "milestone": 3,
     "passed": true,
-    "fingerprint": "44f3a743e29b5ade621c26692186793271a5cc6a"
+    "fingerprint": "53ee0cce6b4888ab2a16dad70049cbc2dd676476"
   }
 }
