@@ -295,7 +295,7 @@ Steps:
 
 - [x] Task 5: Claude client with structured answers, retries and usage counts. Requirements: R4, R11, R12, R51, R62
 - [x] Task 6: extraction step, arithmetic checks and progress page. Requirements: R4, R11, R12, R13, R14, R15, R16, R17, R30, R51, R52, R62
-- [ ] Task 7: metadata matching rules. Requirements: R18, R19, R20, R21, R22, R23, R30, R35
+- [x] Task 7: metadata matching rules. Requirements: R18, R19, R20, R21, R22, R23, R30, R35
 - [ ] Task 8: confirmation screen, warnings and the gate. Requirements: R22, R24, R25, R26, R28, R32, R35, R61
 
 What the author can look at: upload each sample invoice and see its header facts, lines, arithmetic

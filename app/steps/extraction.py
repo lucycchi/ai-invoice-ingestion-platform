@@ -4,10 +4,13 @@ import json
 
 from app.checks import arithmetic_warnings
 from app.clients.claude import ClaudeFailed
+from app.clients.reference_api import ReferenceUnavailable, load_reference_data
 from app.clock import now_iso
-from app.models import Extraction, Invoice, LineItem, Run
+from app.models import Extraction, Invoice, LineItem, MetadataSuggestion, Run
+from app.schemas import ExtractedHeader
 from app.money import parse_money, parse_quantity
 from app.status import Status, claim, fail
+from app.steps.metadata import suggest
 
 NOT_AN_INVOICE = "This file doesn't look like an invoice."
 
@@ -48,7 +51,25 @@ def run_extraction(app, invoice_id: int) -> None:
             _store(s, invoice_id, answer, app.state.claude.model)
             s.commit()
 
+    try:
+        data = load_reference_data(app.state.reference)
+    except ReferenceUnavailable as down:
+        with sessions() as s:
+            fail(s, invoice_id, str(down))
+            s.commit()
+        return
     with sessions() as s:
+        header = ExtractedHeader.model_validate_json(s.query(Extraction).filter_by(invoice_id=invoice_id).one().header)
+        s.query(MetadataSuggestion).filter_by(invoice_id=invoice_id).delete()
+        for suggestion in suggest(header, data):
+            s.add(MetadataSuggestion(
+                invoice_id=invoice_id,
+                field=suggestion.field,
+                entity_id=suggestion.entity_id,
+                entity_name=suggestion.entity_name,
+                confidence=suggestion.confidence,
+                reasons=json.dumps(suggestion.reasons),
+            ))
         claim(s, invoice_id, expected={Status.EXTRACTING}, new=Status.AWAITING_CONFIRMATION)
         s.commit()
 

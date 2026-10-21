@@ -152,3 +152,29 @@ def test_invoice_page_shows_extraction_time(settings):
     with _app(settings, FakeClaude(extraction=saved_extraction("simple_invoice"))) as client:
         page = client.get(f"/invoices/{_upload(client)}").text
     assert "Reading took" in page
+
+
+def test_suggestions_stored(settings):
+    from app.models import MetadataSuggestion
+
+    with _app(settings, FakeClaude(extraction=saved_extraction("simple_invoice"))) as client:
+        rows = _get(client, MetadataSuggestion, _upload(client))
+    assert {(r.field, r.entity_id, r.confidence) for r in rows} == {
+        ("sponsor", 2, "exact"), ("study", 3, "exact"), ("site", 1, "exact")
+    }
+
+
+def test_reference_down_keeps_reading(settings):
+    claude = FakeClaude(extraction=saved_extraction("simple_invoice"))
+    reference = FakeReference()
+    reference.down = True
+    with _app(settings, claude, reference) as client:
+        invoice_id = _upload(client)
+        invoice = _get(client, Invoice, invoice_id)
+        assert invoice.status == "extraction_failed"
+        assert "http://api:8000" in invoice.status_reason
+        assert len(_get(client, LineItem, invoice_id)) == 5
+        reference.down = False
+        client.post(f"/invoices/{invoice_id}/retry")
+        assert _get(client, Invoice, invoice_id).status == "awaiting_confirmation"
+    assert sum(1 for c in claude.calls if c["kind"] == "extract") == 1
