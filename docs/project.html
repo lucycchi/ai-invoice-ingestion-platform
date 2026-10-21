@@ -59,11 +59,11 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </section>
 <h3>Key decisions</h3>
 <ul>
-<li>When extracted metadata is close to a reference record but not exact, does the app suggest its best guess or show the field as not found? Suggest the best guess per field with confidence and reasons, never auto-confirm, and cross-check the fields</li>
-<li>How should the app handle latency, and how is it measured? Background work with visible progress, a fixed measurement from the Confirm click to the last line on screen, and a measured target under 30 seconds for the large invoice</li>
 <li>May automated tests use a stand-in for Claude, given the instruction &#x27;Real AI — No mock AI&#x27;? Real Claude in the app always; stand-ins in most tests; a marked set of real-Claude tests on the four samples, run on request</li>
 <li>What overall approach should the app be built with? One Python app (FastAPI, server-rendered pages with htmx, SQLite), code-based metadata matching, Claude for extraction and grouped, cached line matching</li>
 <li>How should line matching keep hostile text in one invoice line from affecting the matches for other lines? Keep groups, separate data fields, and a test that other lines are unaffected</li>
+<li>Should the matching prompt&#x27;s worked examples come from the sample invoices, including the tie-break example the spec gives for price breaking a tie (R39)? Use examples that appear in no sample invoice, keeping the tie-break rule but with a new example</li>
+<li>How should the status guard take SQLite&#x27;s write lock before reading an invoice it will change (status guard task, Task 3)? A conditional update that changes nothing, which takes the write lock inside the normal transaction</li>
 </ul>
 <section id="progress">
 <h2>Progress</h2>
@@ -1612,7 +1612,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ul>
 <h3>D13: Should the matching prompt's worked examples come from the sample invoices, including the tie-break example the spec gives for price breaking a tie (R39)?</h3>
 <ul>
-<li><strong>Status:</strong> proposed</li>
+<li><strong>Status:</strong> settled</li>
 <li><strong>Proposed by:</strong> Claude (claude-opus-5-5) on 2026-10-20</li>
 <li><strong>Options:</strong>
 <ul>
@@ -1629,7 +1629,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ul>
 <h3>D14: How should the status guard take SQLite's write lock before reading an invoice it will change (status guard task, Task 3)?</h3>
 <ul>
-<li><strong>Status:</strong> proposed</li>
+<li><strong>Status:</strong> settled</li>
 <li><strong>Proposed by:</strong> Claude (claude-opus-5-5) on 2026-10-20</li>
 <li><strong>Options:</strong>
 <ul>

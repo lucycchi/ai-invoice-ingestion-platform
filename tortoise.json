@@ -1,6 +1,6 @@
 {
   "name": "AI Invoice Ingestion Platform",
-  "stage": "final-checks",
+  "stage": "done",
   "test_command": ".venv/bin/pytest",
   "approvals": [
     {
@@ -46,6 +46,11 @@
       "date": "2026-10-20",
       "tag": "tortoise/milestone-4",
       "milestone": 4
+    },
+    {
+      "stage": "final-checks",
+      "date": "2026-10-20",
+      "tag": "tortoise/final-checks"
     }
   ],
   "milestone": 4,

@@ -175,7 +175,7 @@ can only propose a decision; only the author settles one.
 
 ## D13: Should the matching prompt's worked examples come from the sample invoices, including the tie-break example the spec gives for price breaking a tie (R39)?
 
-- **Status:** proposed
+- **Status:** settled
 - **Proposed by:** Claude (claude-opus-5-5) on 2026-10-20
 - **Options:**
   - Use examples that appear in no sample invoice, keeping the tie-break rule but with a new example
@@ -188,7 +188,7 @@ can only propose a decision; only the author settles one.
 
 ## D14: How should the status guard take SQLite's write lock before reading an invoice it will change (status guard task, Task 3)?
 
-- **Status:** proposed
+- **Status:** settled
 - **Proposed by:** Claude (claude-opus-5-5) on 2026-10-20
 - **Options:**
   - A conditional update that changes nothing, which takes the write lock inside the normal transaction
