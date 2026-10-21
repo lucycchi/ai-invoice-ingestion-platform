@@ -9,7 +9,7 @@ DATA = reference_data()
 
 
 def _suggest(**header):
-    return {s.field: s for s in suggest(ExtractedHeader(**header), DATA)}
+    return {s.field: s for s in suggest(ExtractedHeader.blank(**header), DATA)}
 
 
 def test_clean():

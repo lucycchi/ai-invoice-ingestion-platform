@@ -90,6 +90,11 @@ def _failure_reason(err: anthropic.APIError, timeout: int) -> str:
     return "Claude's answer couldn't be used"
 
 
+def _not_retryable(err: anthropic.APIError) -> bool:
+    """A request the API rejected as invalid (a 4xx other than timeout, conflict or rate limit) fails the same way again."""
+    return isinstance(err, anthropic.APIStatusError) and err.status_code < 500 and err.status_code not in (408, 409, 429)
+
+
 class ClaudeClient:
     def __init__(self, api_key: str, model: str, sdk=None, sleep=time.sleep):
         self.model = model
@@ -143,6 +148,8 @@ class ClaudeClient:
             except anthropic.APIError as err:
                 usage += Usage(requests=1)  # a failed call still counts as a request
                 reason = _failure_reason(err, timeout)
+                if _not_retryable(err):
+                    break
                 continue
             except ValidationError:
                 usage += Usage(requests=1)
@@ -157,4 +164,5 @@ class ClaudeClient:
                 reason = "Claude's answer couldn't be read"
             else:
                 return response.parsed_output, usage
-        raise ClaudeFailed(f"{reason} (after {ATTEMPTS} tries)", usage)
+        tries = usage.requests
+        raise ClaudeFailed(f"{reason} (after {tries} {'try' if tries == 1 else 'tries'})", usage)

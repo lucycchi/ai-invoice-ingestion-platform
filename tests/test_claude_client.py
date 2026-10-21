@@ -33,7 +33,7 @@ def _response(parsed, stop_reason="end_turn", usage=None):
 
 EXTRACTION = ExtractionAnswer(
     is_invoice=True,
-    header=ExtractedHeader(invoice_number="INV-2024-001", printed_total="$2,230.00"),
+    header=ExtractedHeader.blank(invoice_number="INV-2024-001", printed_total="$2,230.00"),
     lines=[ExtractedLine(description="Screening Visit", quantity="2", unit_price="$480.00", amount="$960.00")],
 )
 GROUP = GroupAnswer(results=[LineResult(position=1, catalog_item_id=10, confidence="high", reason="Same visit.", alternatives=[])])
@@ -194,7 +194,42 @@ def test_sdk_retries_off_and_max_tokens():
 
 def test_empty_text_becomes_null():
     answer = ExtractionAnswer.model_validate(
-        {"is_invoice": True, "header": {"sponsor_name": ""}, "lines": [{"description": "CBC", "quantity": "  "}]}
+        {
+            "is_invoice": True,
+            "header": {name: None for name in ExtractedHeader.model_fields} | {"sponsor_name": ""},
+            "lines": [{"description": "CBC", "quantity": "  ", "unit_price": None, "amount": None}],
+        }
     )
     assert answer.header.sponsor_name is None
     assert answer.lines[0].quantity is None
+
+
+def test_answer_shapes_have_no_optional_fields():
+    # The API rejects schemas with many optional fields ("Schema is too complex"), so every field is
+    # required and nullable instead: Claude always sends it, with null when nothing is printed.
+    from app.schemas import ExtractedHeader, ExtractedLine, ExtractionAnswer, GroupAnswer, LineResult
+
+    for shape in (ExtractedHeader, ExtractedLine, ExtractionAnswer, LineResult, GroupAnswer):
+        schema = shape.model_json_schema()
+        assert set(schema["required"]) == set(schema["properties"]), shape.__name__
+
+
+def _status_error(code):
+    return anthropic.APIStatusError(
+        "rejected", response=httpx.Response(code, request=httpx.Request("POST", "https://x")), body=None
+    )
+
+
+def test_invalid_request_not_retried():
+    client, sdk = _client([_status_error(400)])
+    with pytest.raises(ClaudeFailed) as err:
+        client.extract(b"%PDF-1.4", "application/pdf")
+    assert len(sdk.calls) == 1
+    assert "HTTP 400" in err.value.reason and "1 try" in err.value.reason
+
+
+@pytest.mark.parametrize("code", [429, 500, 529])
+def test_busy_or_server_errors_retried(code):
+    client, sdk = _client([_status_error(code), _response(EXTRACTION)])
+    answer, _ = client.extract(b"%PDF-1.4", "application/pdf")
+    assert answer.is_invoice and len(sdk.calls) == 2

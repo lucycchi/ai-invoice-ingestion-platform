@@ -14,28 +14,36 @@ def _blank_to_none(value):
 
 Text = Annotated[str | None, BeforeValidator(_blank_to_none)]
 
+# Every field below is required and nullable (no defaults): Claude's structured outputs reject a schema
+# with many optional fields ("Schema is too complex"), and the spec wants null, never a missing field.
+
 
 class ExtractedHeader(BaseModel):
-    invoice_number: Text = None
-    invoice_date: Text = None
-    site_name: Text = None
-    site_street: Text = None
-    site_city: Text = None
-    site_state: Text = None
-    site_postal_code: Text = None
-    site_country: Text = None
-    pi_name: Text = None
-    sponsor_name: Text = None
-    study_name: Text = None
-    protocol_number: Text = None
-    printed_total: Text = None
+    @classmethod
+    def blank(cls, **fields) -> "ExtractedHeader":
+        """A header with every field null except those given (for building test examples)."""
+        return cls(**({name: None for name in cls.model_fields} | fields))
+
+    invoice_number: Text
+    invoice_date: Text
+    site_name: Text
+    site_street: Text
+    site_city: Text
+    site_state: Text
+    site_postal_code: Text
+    site_country: Text
+    pi_name: Text
+    sponsor_name: Text
+    study_name: Text
+    protocol_number: Text
+    printed_total: Text
 
 
 class ExtractedLine(BaseModel):
-    description: Text = None
-    quantity: Text = None
-    unit_price: Text = None
-    amount: Text = None
+    description: Text
+    quantity: Text
+    unit_price: Text
+    amount: Text
 
 
 class ExtractionAnswer(BaseModel):
