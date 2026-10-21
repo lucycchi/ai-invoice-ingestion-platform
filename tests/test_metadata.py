@@ -135,3 +135,23 @@ def test_samples(sample, expected):
     for field, (entity_id, levels) in expected.items():
         assert got[field].entity_id == entity_id, field
         assert got[field].confidence in levels, (field, got[field].confidence, got[field].reasons)
+
+
+def test_near_protocol_with_conflicting_name():
+    s = _suggest(protocol_number="NWD-LUM-2024-002", study_name="VERITAS Phase 2 Study")["study"]
+    assert (s.confidence, s.entity_id) == ("uncertain", 1)
+    assert any("study name points to VERITAS" in r for r in s.reasons)
+
+
+def test_exact_site_name_with_conflicting_facts():
+    s = _suggest(site_name="Highland Ridge Hospital - Research Unit", site_city="Kansas City", site_state="MO",
+                 pi_name="Dr. Riley H. Foster")["site"]
+    assert (s.confidence, s.entity_id) == ("likely", 3)
+    assert any("Denver" in r and "Kansas City" in r for r in s.reasons)
+
+
+def test_sponsor_from_study_never_above_study():
+    found = _suggest(study_name="Veritaz Prog")
+    assert found["study"].confidence == "uncertain"
+    assert found["sponsor"].confidence == "uncertain"
+    assert "Sponsor taken from the matched study." in found["sponsor"].reasons

@@ -48,3 +48,13 @@ def test_missing_number_left_out_of_failing_total():
         "Line 1: this line's arithmetic couldn't be checked because a number is missing.",
         "Total: the lines add up to $400.00, but the invoice says $900.00 (1 line left out).",
     ]
+
+
+def test_fractional_quantity_rounds_to_the_cent():
+    assert arithmetic_warnings([_line(1.5, "33.33", "50.00")], Decimal("50.00")) == []
+    assert arithmetic_warnings([_line(0.3, "0.33", "0.10")], Decimal("0.10")) == []
+
+
+def test_unreadable_total_is_not_called_missing():
+    warnings = arithmetic_warnings([_line(1, "400.00", "400.00")], None, printed_total_text="about 2k")
+    assert warnings == ["The total is printed as 'about 2k', but it couldn't be read as a number, so the total was not checked."]

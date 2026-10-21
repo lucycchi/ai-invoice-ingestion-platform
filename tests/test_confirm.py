@@ -51,7 +51,7 @@ def _confirm(env, invoice_id, sponsor, study, site):
 
 def test_screen_shows_suggestions(env):
     page = env[0].get(f"/invoices/{_upload(env, 'mismatched_metadata_invoice')}").text
-    assert page.count("likely") >= 3
+    assert page.count(">likely<") == 3
     assert "Northwind Pharma" in page and "VERITAS" in page
     assert "differs in the year" in page
 
@@ -209,3 +209,73 @@ def test_offer_study_sponsor(env):
     assert "Use Northwind Pharma" in page
     prefilled = env[0].get(f"/invoices/{invoice_id}?sponsor_id=1&study_id=1").text
     assert 'value="1" selected' in prefilled
+
+
+def test_warnings_shown_on_first_load(env):
+    from app.models import MetadataSuggestion
+
+    invoice_id = _upload(env, "large_invoice")
+    with env[0].app.state.sessions() as s:
+        site = s.query(MetadataSuggestion).filter_by(invoice_id=invoice_id, field="site").one()
+        site.entity_id, site.entity_name = 6, "Prairie Field Research Group"
+        s.commit()
+    assert "isn't listed as taking part in LUMIN-2024" in unescape(env[0].get(f"/invoices/{invoice_id}").text)
+
+
+def test_duplicate_shown_on_first_load(env):
+    earlier = _upload(env, "medium_invoice")
+    _confirm(env, earlier, 1, 1, 2)
+    later = _upload(env, "medium_invoice")
+    page = unescape(env[0].get(f"/invoices/{later}").text)
+    assert "An earlier upload, medium-invoice.pdf" in page
+
+
+def test_duplicate_ignores_later_uploads(env):
+    first = _upload(env, "medium_invoice")
+    second = _upload(env, "medium_invoice")
+    _confirm(env, second, 1, 1, 2)
+    part = env[0].get(f"/invoices/{first}/warnings?sponsor_id=1&study_id=1&site_id=2").text
+    assert "INV-2024-042" not in part
+
+
+def test_change_metadata_clears_confirmed_choice(env):
+    invoice_id = _upload(env)
+    _confirm(env, invoice_id, 2, 3, 1)
+    _set_status(env, invoice_id, "in_review")
+    env[0].post(f"/invoices/{invoice_id}/change-metadata")
+    invoice = _invoice(env, invoice_id)
+    assert (invoice.confirmed_sponsor_id, invoice.confirmed_study_id, invoice.confirmed_site_id) == (None, None, None)
+
+
+def test_status_checked_before_choices(env):
+    invoice_id = _upload(env)
+    _set_status(env, invoice_id, "finalized")
+    assert _confirm(env, invoice_id, 99, 99, 99).status_code == 409
+    env[2].down = True
+    assert _confirm(env, invoice_id, 2, 3, 1).status_code == 409
+
+
+def test_owner_lookup_outage_is_503(env):
+    invoice_id = _upload(env)
+    reference = env[2]
+    original = reference.get_sponsor
+    calls = {"n": 0}
+
+    def flaky(sponsor_id):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            reference.down = True
+        return original(sponsor_id)
+
+    reference.get_sponsor = flaky
+    response = _confirm(env, invoice_id, 2, 2, 1)
+    assert response.status_code == 503
+    assert "Couldn't reach the reference API" in unescape(response.text)
+
+
+def test_study_picker_outage(env):
+    invoice_id = _upload(env)
+    env[2].down = True
+    response = env[0].get(f"/invoices/{invoice_id}/studies?sponsor_id=2")
+    assert response.status_code == 503
+    assert "Couldn't reach the reference API" in unescape(response.text)

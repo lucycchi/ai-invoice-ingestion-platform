@@ -31,3 +31,19 @@ def test_parse_quantity():
 def test_format_money():
     assert format_money(Decimal("2230")) == "$2,230.00"
     assert format_money(Decimal("-25")) == "-$25.00"
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [("USD 2,230.00", "2230.00"), ("€475", "475.00"), ("£42.50", "42.50"), ("(50.00)", "-50.00"), ("2230.00 USD", "2230.00")],
+)
+def test_parse_money_currency_and_accounting_forms(text, expected):
+    assert parse_money(text) == Decimal(expected)
+
+
+@pytest.mark.parametrize("text", ["NaN", "Infinity", "-inf", "sNaN"])
+def test_parse_money_rejects_non_numbers(text):
+    with pytest.raises(ValueError):
+        parse_money(text)
+    with pytest.raises(ValueError):
+        parse_quantity(text)

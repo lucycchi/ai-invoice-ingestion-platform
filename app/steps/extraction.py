@@ -30,7 +30,9 @@ def run_extraction(app, invoice_id: int) -> None:
         already_read = s.query(Extraction).filter_by(invoice_id=invoice_id).first() is not None
         stored_path = app.state.settings.data_dir / "uploads" / invoice.stored_path
         media_type = invoice.media_type
-        started_at = invoice.uploaded_at if not already_read else now_iso()
+        # The first reading is timed from the upload; a Retry is timed from when it was asked for.
+        first_attempt = s.query(Run).filter_by(invoice_id=invoice_id, step="extraction").count() == 0
+        started_at = invoice.uploaded_at if first_attempt else now_iso()
 
     if not already_read:
         data = stored_path.read_bytes()
@@ -74,17 +76,28 @@ def run_extraction(app, invoice_id: int) -> None:
         s.commit()
 
 
+def _unreadable(position: int, what: str, text: str | None, value) -> list[str]:
+    if text is not None and value is None:
+        return [f"Line {position}: the {what} is printed as '{text}', but it couldn't be read as a number."]
+    return []
+
+
 def _store(s, invoice_id: int, answer, model: str) -> None:
-    lines = []
+    lines, notes = [], []
     for position, extracted in enumerate(answer.lines, start=1):
         quantity = _safe(parse_quantity, extracted.quantity)
+        unit_price = _safe(parse_money, extracted.unit_price)
+        amount = _safe(parse_money, extracted.amount)
+        notes += _unreadable(position, "quantity", extracted.quantity, quantity)
+        notes += _unreadable(position, "unit price", extracted.unit_price, unit_price)
+        notes += _unreadable(position, "amount", extracted.amount, amount)
         line = LineItem(
             invoice_id=invoice_id,
             position=position,
             description=extracted.description,
             quantity=None if quantity is None else float(quantity),
-            unit_price=_safe(parse_money, extracted.unit_price),
-            amount=_safe(parse_money, extracted.amount),
+            unit_price=unit_price,
+            amount=amount,
         )
         lines.append(line)
         s.add(line)
@@ -95,7 +108,9 @@ def _store(s, invoice_id: int, answer, model: str) -> None:
             is_invoice=True,
             header=answer.header.model_dump_json(),
             printed_total=printed_total,
-            arithmetic_warnings=json.dumps(arithmetic_warnings(lines, printed_total)),
+            arithmetic_warnings=json.dumps(
+                notes + arithmetic_warnings(lines, printed_total, answer.header.printed_total)
+            ),
             raw_answer=answer.model_dump_json(),
             model=model,
         )

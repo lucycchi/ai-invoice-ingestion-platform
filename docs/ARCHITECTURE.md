@@ -17,9 +17,10 @@ refuses any step whose status is wrong, which is what makes the confirmation gat
 
 **Where the project stands.** The intent (`docs/DESIGN.md`, tagged `tortoise/ideas`) and the spec
 (`docs/SPEC.md`, 63 requirements, tagged `tortoise/spec`) are approved. This document is the
-architecture, approved and tagged `tortoise/architecture`. Milestone 1 is built: the app skeleton,
-database, reference API client, status guard and upload screen. Extraction and the later steps follow
-in milestones 2 to 4.
+architecture, approved and tagged `tortoise/architecture`. Milestones 1 and 2 are built: the app skeleton,
+database, reference API client, status guard, upload screen, Claude client, extraction, metadata
+suggestions and the confirmation gate. Line matching, review, finalizing and delivery follow in
+milestones 3 and 4.
 
 Requirements are referred to by name with their spec number in brackets, such as "the gate refusing
 early matching (R28)".
@@ -86,7 +87,7 @@ flowchart TB
     store["Data store<br/>(SQLite tables)"]
 
     pages -->|"asks to start or change a step"| status
-    status -->|"hands claimed work"| runner
+    pages -->|"hands claimed work"| runner
     runner -->|"runs reading"| extract
     runner -->|"runs suggestions"| meta
     runner -->|"runs matching"| lines
@@ -158,7 +159,7 @@ erDiagram
     }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice this reading belongs to, unique"
+        INTEGER invoice_id FK "whole number: the invoice this reading belongs to, unique"
         BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
         TEXT header "extracted header fields as JSON"
         VARCHAR printed_total "exact decimal, or empty if none"
@@ -168,26 +169,26 @@ erDiagram
     }
     LINE_ITEMS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice it was read from"
-        INTEGER position "order on the invoice, from 1, unique per invoice"
+        INTEGER invoice_id FK "whole number: the invoice it was read from"
+        INTEGER position "whole number: order on the invoice, from 1, unique per invoice"
         TEXT description "as printed"
-        FLOAT quantity "number as printed, or empty if not printed"
+        FLOAT quantity "decimal number as printed, or empty if not printed"
         VARCHAR unit_price "exact decimal"
         VARCHAR amount "exact decimal"
     }
     METADATA_SUGGESTIONS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice suggested for"
+        INTEGER invoice_id FK "whole number: the invoice suggested for"
         VARCHAR field "sponsor, study or site, unique per invoice"
-        INTEGER entity_id "suggested reference API ID, or empty"
+        INTEGER entity_id "whole number: suggested reference API ID, or empty"
         TEXT entity_name "suggested name"
         VARCHAR confidence "exact, likely, uncertain or not_found"
         TEXT reasons "list of plain sentences as JSON"
     }
     CATALOG_SNAPSHOT {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice the catalog was fetched for"
-        INTEGER catalog_item_id "reference API catalog item ID, unique per invoice"
+        INTEGER invoice_id FK "whole number: the invoice the catalog was fetched for"
+        INTEGER catalog_item_id "whole number: reference API catalog item ID, unique per invoice"
         VARCHAR item_code "such as ADMIN-IRB"
         TEXT description "catalog description"
         VARCHAR category "such as administrative"
@@ -195,26 +196,26 @@ erDiagram
     }
     LINE_MATCHES {
         INTEGER id PK "whole number, given automatically"
-        INTEGER line_item_id FK "the line this match is for, unique"
-        INTEGER ai_catalog_item_id "AI's choice, or empty for no match"
+        INTEGER line_item_id FK "whole number: the line this match is for, unique"
+        INTEGER ai_catalog_item_id "whole number: AI's choice, or empty for no match"
         VARCHAR ai_confidence "high, medium or low"
         TEXT ai_reason "one sentence"
         TEXT ai_alternatives "up to two item IDs as JSON"
         VARCHAR override_kind "none, item or no_match"
-        INTEGER override_catalog_item_id "the person's choice, if any"
+        INTEGER override_catalog_item_id "whole number: the person's choice, if any"
         TEXT price_flag "both prices and the difference as JSON, or empty"
     }
     RUNS {
         INTEGER id PK "whole number, given automatically"
-        INTEGER invoice_id FK "the invoice the run worked on"
-        VARCHAR step "extraction, metadata or matching"
+        INTEGER invoice_id FK "whole number: the invoice the run worked on"
+        VARCHAR step "extraction or matching"
         VARCHAR started_at "time the server received the request, as ISO 8601 text"
         VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
         VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
-        INTEGER claude_requests "number of calls to Claude"
-        INTEGER input_tokens "tokens sent"
-        INTEGER output_tokens "tokens received"
-        INTEGER cache_read_tokens "tokens read from Claude's cache"
+        INTEGER claude_requests "whole number: number of calls to Claude"
+        INTEGER input_tokens "whole number: tokens sent"
+        INTEGER output_tokens "whole number: tokens received"
+        INTEGER cache_read_tokens "whole number: tokens read from Claude's cache"
         BOOLEAN cache_applied "yes or no: the first group warmed the cache"
         TEXT outcome "succeeded or failed, with the reason"
     }
@@ -234,7 +235,7 @@ snapshot row per catalog item per invoice, and one match per line. Quantities ar
   checked against it (the stored-ID check, R40).
 - Each line item has at most one line match, which holds both the AI's original suggestion and any
   override side by side (the override rule, R47).
-- Each invoice has a list of runs, one per extraction, metadata or matching attempt (the timing
+- Each invoice has a list of runs, one per extraction or matching attempt (the timing
   record, R51).
 
 Going back to change the metadata (the going-back rule, R32) deletes that invoice's line matches and
@@ -270,10 +271,10 @@ sequenceDiagram
     P->>P: 2. checks size, type from contents, then image size or PDF pages
     P->>P: 3. saves the file, creates invoice in extracting status
     P-->>U: 4. redirects to the invoice page
-    G->>R: 5. starts extraction in the background
+    P->>R: 5. starts extraction in the background
     R->>C: 6. sends the file, asks for fixed JSON
     C-->>R: 7. returns header, total and lines
-    R->>R: 8. stores reading, runs arithmetic checks
+    R->>R: 8. runs arithmetic checks, stores the reading
     R->>M: 9. asks for sponsor, study, site suggestions
     M->>A: 10. fetches sponsors, studies, sites, links
     A-->>M: 11. returns every page of each list
@@ -298,10 +299,16 @@ This shows what happens from upload until the confirmation screen is ready.
    (section 6), and a 120-second timeout.
 7. Claude returns the header facts, the printed total, the yes-or-no "is this an invoice" answer and
    every line.
-8. The reading is stored, then the arithmetic checks run (the arithmetic rule, R16). A line with a
-   missing quantity, unit price or amount gets the warning "This line's arithmetic couldn't be
-   checked: a number is missing", and the total check leaves that line's amount out and says so. If Claude said it
-   is not an invoice, the status becomes extraction failed instead (R13).
+8. The arithmetic checks run, then the reading and its warnings are stored (the arithmetic rule, R16).
+   Each line's quantity times unit price is rounded to the cent before it is compared with the amount.
+   A line with a missing quantity, unit price or amount gets the warning "Line N: this line's
+   arithmetic couldn't be checked because a number is missing.", and the total check leaves out lines
+   with no amount and says how many. Money printed with currency codes or symbols (such as
+   `USD 2,230.00` or `€475`) or as an accounting negative (`(50.00)`) is read normally; a value that
+   still can't be read as a number is stored as missing with a warning quoting how it was printed, and
+   an unreadable printed total is reported as such rather than as "no total printed". If Claude said
+   it is not an invoice, the status becomes extraction failed instead (R13). A Retry's reading is timed
+   from when Retry was pressed; the first reading from the upload.
 9. Metadata matching starts straight away, in the same background job.
 10. It fetches all sponsors, studies, sites and study-site links through the reference API client.
 11. The client keeps asking for pages until it has all of them (the paging rule, R34).
@@ -335,7 +342,7 @@ sequenceDiagram
         G->>G: 6. one update, only from awaiting confirmation
         G-->>P: 7. claim won, or refused
         P-->>U: 8. shows progress, or the refusal
-        G->>R: 9. starts line matching
+        P->>R: 9. starts line matching
     end
 ```
 
@@ -361,7 +368,7 @@ This shows the gate: the only way into line matching.
 
 **Warnings while choosing.** Whenever the person changes the sponsor, study or site picker, the page
 asks the server to redraw the warnings for the current choice: the site not being linked to the
-study (the cross-check, R22) and an earlier invoice with the same invoice number and confirmed site
+study (the cross-check, R22) and an earlier upload with the same invoice number whose site is currently confirmed as the same one
 (the duplicate warning, R25). Neither warning blocks Confirm.
 
 There is no other route that starts matching. Retry from matching failed uses the same guard, with
@@ -530,10 +537,15 @@ Both calls go through the Claude client, which uses the official `anthropic` Pyt
 - **Effort.** `claude-opus-5-5` always thinks a little and cannot have thinking turned off, so effort
   is the speed control. Extraction starts at `medium` and line matching at `low`. The live tests
   measure both, and the effort can be raised if accuracy falls short.
-- **Refusals.** If Claude stops with a refusal, the call counts as failed and goes through the same
-  retry rules as an error.
-- **Timeouts and retries.** Extraction: 120 seconds per call, then two retries (R62). Matching: 60
-  seconds per call, then two retries with growing waits (R41).
+- **Unusable answers.** A refusal, an answer cut off at the token limit, or an answer that doesn't
+  fit the shape counts as failed and goes through the same retry rules as an error. A failed call
+  still counts as a request in the run's numbers, and the reason shown never repeats the error's own
+  text.
+- **Prompts.** The extraction instructions live in `app/prompts/extraction.md`; the matching
+  instructions will live beside them.
+- **Timeouts and retries.** The `anthropic` library's own retries are turned off, so these are the
+  total. Extraction: 120 seconds per call; matching: 60 seconds per call; each followed by up to two
+  more tries after waits of 1 and 3 seconds (R62, R41). Every request sets `max_tokens=16000`.
 - **Usage.** Every answer's token counts are added to the current run (R51).
 - **The key** is read once from `ANTHROPIC_API_KEY` at startup and is never logged or stored (R4).
 
@@ -564,25 +576,33 @@ calls taking roughly 8 to 15 seconds at low effort, both fit inside the 30-secon
 
 ## 7. Metadata matching rules
 
-All comparisons first clean the text: lower case, punctuation removed, spaces collapsed.
+All comparisons first clean the text: lower case, accents removed, punctuation removed, spaces
+collapsed.
 
-- **Exact** means the cleaned text is identical (for a name), or the protocol number is identical.
+- **Exact** means the cleaned text is identical (for a name; a sponsor's short code also counts), or
+  the protocol number is identical.
   Company endings are not removed for this test, so "Northwind Pharmaceuticals Inc." is never exact
   for "Northwind Pharma" (R19).
 - **Fuzzy score.** For likely and uncertain, the app also removes common company endings ("inc",
-  "ltd", "llc", "pharmaceuticals", "pharma", "therapeutics", "biopharma", "life sciences") and scores
+  "ltd", "llc", "co", "corp", "company", "pharmaceuticals", "pharma", "therapeutics", "biopharma",
+  "life", "sciences") and scores
   similarity with the `rapidfuzz` library's token set ratio, from 0 to 100.
 - **Starting thresholds**, tuned by the tests: 85 or more is likely; 60 to 84 is uncertain; below 60
-  is not found. A clear gap to the second-best candidate is required for likely.
+  is not found. Likely also needs a lead of at least 10 points over the second-best candidate.
 - **Protocol numbers** are compared segment by segment, split on hyphens. A protocol that differs from
   a real one in exactly one segment is likely, and the reason names that segment ("differs in the
-  year" when the segment is a four-digit year) (R20). The study name is also scored, and a name that
-  points to a different study lowers an exact protocol match to likely.
+  year" when the segment is a four-digit year) (R20). The study name is always scored too: a name
+  that points clearly to a different study lowers an exact protocol match to likely, and a one-segment
+  near miss to uncertain, with the conflict named. A study with no protocol match is scored by name
+  alone.
 - **Sites** add supporting evidence to the name score: the same city and state, and the same
-  principal investigator surname, each move the confidence up one level, at most to likely. A name
-  score below 60 with all three supporting facts matching is uncertain (R21).
-- **Cross-checks** then run as the spec describes (R22): study against sponsor, sponsor taken from
-  the study, and a site not linked to the study lowering the site's confidence by one level.
+  principal investigator surname. Two facts together, or one fact with a name score of at least 60,
+  move the confidence up one level, at most to likely (R21). An exact site name whose printed city,
+  state or investigator disagrees with the record is likely, not exact, with the disagreement named.
+- **Cross-checks** then run as the spec describes (R22): study against sponsor; sponsor taken from
+  the study (never rated above the study's own level); and a site not linked to the study lowering
+  the site's confidence by one level. The confirmation screen shows the site-link and duplicate
+  warnings as soon as it loads, and redraws them when a picker changes.
 
 Every expected example in the spec (R19, R20, R21 and the four sample invoices) is a unit test, so the
 thresholds can be tuned without guessing.
@@ -648,8 +668,8 @@ This shows the retry loop every Claude request goes through, inside one backgrou
 - Retry counts and timeouts are in section 6. "Answer usable" means it arrived, was not a refusal, and
   passed the shape and catalog checks.
 - Every background job runs inside a catch-all. Any error that isn't a handled Claude or reference
-  API failure, such as a missing stored file or a database error, sets the matching failure status
-  with the reason "Unexpected error: …" and is logged, so an invoice never stays in extracting or
+  API failure, such as a missing stored file or a database error, sets the running step's failure
+  status with the reason "Unexpected error (<error type>); details are in the app log" and is logged, so an invoice never stays in extracting or
   matching while nothing is running. A missing stored file gives the reason "The uploaded file is
   missing; please upload it again", since Retry cannot fix that.
 - When the app starts, before taking any requests, it moves every invoice still in extracting or
@@ -695,7 +715,8 @@ them, but the tests call them directly to prove the gate holds.
 | `GET /invoices/{id}/studies?sponsor_id=` | Study picker choices for a sponsor | |
 | `GET /invoices/{id}/warnings?sponsor_id=&study_id=&site_id=` | Redraws the site-link and duplicate warnings for the current choice | |
 | `POST /invoices/{id}/confirm` | Confirms sponsor, study and site; starts matching | 409 wrong status, 422 invalid choice, 503 reference API unreachable |
-| `POST /invoices/{id}/change-metadata` | Clears matches after the warning, back to awaiting confirmation | 409 wrong status |
+| `GET /invoices/{id}/change-metadata` | The warning of how many matches and overrides will be cleared | 409 wrong status |
+| `POST /invoices/{id}/change-metadata` | Clears matches, overrides, the catalog snapshot and the confirmed choices; back to awaiting confirmation | 409 wrong status |
 | `POST /invoices/{id}/retry` | Reruns the failed step | 409 wrong status |
 | `GET /invoices/{id}/catalog?q=` | Searches the catalog snapshot for a picker | |
 | `POST /invoices/{id}/lines/{line_id}/override` | Saves an override or "No match" | 409 wrong status |
@@ -706,7 +727,8 @@ them, but the tests call them directly to prove the gate holds.
 | `GET /invoices/{id}/export.json` | The JSON download | 409 not finalized |
 | `GET /health` | Says whether the app is up | |
 
-All pages use Jinja2 templates with automatic escaping turned on, so invoice and Claude text is
+Every `POST` route also answers 403 to a request from another website, and the app answers 400 to any
+host name other than `localhost` or `127.0.0.1` (section 12, `cross_site.py`). All pages use Jinja2 templates with automatic escaping turned on, so invoice and Claude text is
 always shown as text (R53). htmx is served from the app's own static folder, with no outside download
 at run time.
 
@@ -726,7 +748,7 @@ flowchart TB
 
     main -->|"mounts"| web
     web -->|"asks for moves"| status
-    status -->|"hands work to"| jobs
+    web -->|"hands work to"| jobs
     jobs -->|"runs"| steps
     steps -->|"calls"| clients
     steps -->|"uses"| checks
@@ -745,7 +767,12 @@ This shows where each part lives and which code uses which.
   when the settings are printed.
 - `app/uploads.py` (not drawn) checks an upload and stores it under a generated name.
 - `app/clock.py` (not drawn) gives the current time as ISO 8601 text.
-- `app/web/` holds the route handlers, the Jinja2 templates and the static htmx file.
+- `app/web/` holds the route handlers (`routes.py` for uploads, progress and the invoice page;
+  `confirm.py` for the confirmation screen and the gate), the Jinja2 templates, the static htmx file,
+  and `cross_site.py`, which serves only `localhost` and `127.0.0.1` (blocking DNS-rebinding attacks)
+  and refuses state-changing requests a browser marks as coming from another site, or whose Origin
+  isn't the app's own address and port (HTTP 403).
+- `app/prompts/` holds the instructions sent to Claude, starting with `extraction.md`.
 - `app/status.py` holds the table of allowed moves and the claim function. It is the only place a
   status is written.
 - `app/jobs.py` runs claimed work in the background and owns the thread pool.

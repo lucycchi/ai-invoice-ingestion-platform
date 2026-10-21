@@ -178,3 +178,33 @@ def test_reference_down_keeps_reading(settings):
         client.post(f"/invoices/{invoice_id}/retry")
         assert _get(client, Invoice, invoice_id).status == "awaiting_confirmation"
     assert sum(1 for c in claude.calls if c["kind"] == "extract") == 1
+
+
+def test_unreadable_values_explained(settings):
+    answer = saved_extraction("simple_invoice")
+    answer.lines[0].unit_price = "four hundred"
+    answer.header.printed_total = "about 2k"
+    with _app(settings, FakeClaude(extraction=answer)) as client:
+        [extraction] = _get(client, Extraction, _upload(client))
+    warnings = json.loads(extraction.arithmetic_warnings)
+    assert "Line 1: the unit price is printed as 'four hundred', but it couldn't be read as a number." in warnings
+    assert any(w.startswith("The total is printed as 'about 2k'") for w in warnings)
+    assert NO_TOTAL_TEXT not in warnings
+
+
+NO_TOTAL_TEXT = "No total is printed, so the total was not checked."
+
+
+def test_retry_timing_starts_at_retry(settings):
+    claude = FakeClaude(extraction=ClaudeFailed("Claude timed out", Usage(requests=3)))
+    with _app(settings, claude) as client:
+        invoice_id = _upload(client)
+        with client.app.state.sessions() as s:
+            s.get(Invoice, invoice_id).uploaded_at = "2020-01-01T00:00:00.000Z"
+            s.commit()
+        claude.extraction = saved_extraction("simple_invoice")
+        client.post(f"/invoices/{invoice_id}/retry")
+        runs = _get(client, Run, invoice_id)
+        page = client.get(f"/invoices/{invoice_id}").text
+    assert runs[-1].started_at > "2025"
+    assert "Reading took 0." in page

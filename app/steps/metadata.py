@@ -111,17 +111,27 @@ def _segment_name(printed: str, real: str, index: int) -> str:
     return f"part {index + 1} ('{x}' instead of '{y}')"
 
 
+def _name_points_elsewhere(name, name_scores: dict, study_id: int, data: ReferenceData) -> dict | None:
+    """Another study whose name fits the printed study name clearly better than `study_id` does."""
+    if not name:
+        return None
+    others = [(score, sid) for sid, score in name_scores.items() if sid != study_id]
+    best, best_id = max(others, default=(0, None))
+    if best >= LIKELY_SCORE and best > name_scores[study_id] + LEAD:
+        return _by_id(data.studies, best_id)
+    return None
+
+
 def _suggest_study(header: ExtractedHeader, data: ReferenceData) -> Suggestion:
     protocol, name = header.protocol_number, header.study_name
     name_scores = {s["id"]: _score(clean(name), clean(s["name"])) for s in data.studies} if name else {}
 
     exact = next((s for s in data.studies if protocol and s["protocol_number"].upper() == protocol.strip().upper()), None)
     if exact:
-        others = [(score, _by_id(data.studies, sid)) for sid, score in name_scores.items() if sid != exact["id"]]
-        best_other = max(others, key=lambda pair: pair[0], default=(0, None))
-        if name and best_other[0] >= LIKELY_SCORE and best_other[0] > name_scores[exact["id"]] + LEAD:
+        other = _name_points_elsewhere(name, name_scores, exact["id"], data)
+        if other:
             reason = (f"Protocol {exact['protocol_number']} matches {exact['name']} exactly, but the study name "
-                      f"points to {best_other[1]['name']}.")
+                      f"points to {other['name']}.")
             return Suggestion("study", exact["id"], exact["name"], "likely", [reason])
         return Suggestion("study", exact["id"], exact["name"], "exact", [f"Protocol {exact['protocol_number']} matches exactly."])
 
@@ -131,6 +141,10 @@ def _suggest_study(header: ExtractedHeader, data: ReferenceData) -> Suggestion:
             study, (index,) = near[0]
             reason = (f"Protocol {protocol} is not in the reference data; closest is {study['protocol_number']} "
                       f"({study['name']}), which differs in {_segment_name(protocol.strip(), study['protocol_number'], index)}.")
+            other = _name_points_elsewhere(name, name_scores, study["id"], data)
+            if other:
+                return Suggestion("study", study["id"], study["name"], "uncertain",
+                                  [reason, f"But the study name points to {other['name']}."])
             return Suggestion("study", study["id"], study["name"], "likely", [reason])
 
     if name:
@@ -166,6 +180,18 @@ def _evidence(header: ExtractedHeader, site: dict) -> list[str]:
     return found
 
 
+def _conflicts(header: ExtractedHeader, site: dict) -> list[str]:
+    """Printed facts that disagree with the site record, as one plain phrase (empty if none)."""
+    parts = []
+    if header.site_city and header.site_state and (
+        clean(header.site_city) != clean(site.get("city")) or clean(header.site_state) != clean(site.get("state"))
+    ):
+        parts.append(f"{header.site_city}, {header.site_state}")
+    if header.pi_name and _surname(header.pi_name) != _surname(site.get("pi_name")):
+        parts.append(header.pi_name)
+    return [" and ".join(parts)] if parts else []
+
+
 def _suggest_site(header: ExtractedHeader, data: ReferenceData) -> Suggestion:
     printed = header.site_name
     if not printed:
@@ -173,6 +199,12 @@ def _suggest_site(header: ExtractedHeader, data: ReferenceData) -> Suggestion:
     wanted = clean(printed)
     for site in data.sites:
         if wanted == clean(site["name"]):
+            conflicts = _conflicts(header, site)
+            if conflicts:
+                return Suggestion("site", site["id"], site["name"], "likely", [
+                    f"Site name matches exactly, but the invoice gives {conflicts[0]}; {site['name']} is in "
+                    f"{site['city']}, {site['state']} with {site['pi_name']}."
+                ])
             return Suggestion("site", site["id"], site["name"], "exact", ["Site name matches exactly."])
     ranked = _ranked(data.sites, lambda s: _score(wanted, clean(s["name"])) + 10 * len(_evidence(header, s)))
     (_, site) = ranked[0]
@@ -211,7 +243,9 @@ def suggest(header: ExtractedHeader, data: ReferenceData) -> list[Suggestion]:
         study_record = _by_id(data.studies, study.entity_id)
         owner = _by_id(data.sponsors, study_record["sponsor_id"])
         if sponsor.entity_id is None:
-            sponsor = Suggestion("sponsor", owner["id"], owner["name"], "likely",
+            # Never more certain than the study it came from.
+            level = LEVELS[min(LEVELS.index("likely"), LEVELS.index(study.confidence))]
+            sponsor = Suggestion("sponsor", owner["id"], owner["name"], level,
                                  sponsor.reasons + ["Sponsor taken from the matched study."])
         elif sponsor.entity_id != owner["id"]:
             study.reasons.append(f"{study_record['name']} belongs to {owner['name']}, not {sponsor.entity_name}.")

@@ -40,7 +40,7 @@
     {% endfor %}
     </tbody>
   </table>
-  {% include "_warnings.html" %}
+  {% with warnings=choice_warnings %}{% include "_warnings.html" %}{% endwith %}
   <p><button type="submit">Confirm</button></p>
 </form>
 {% endif %}

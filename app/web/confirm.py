@@ -1,6 +1,7 @@
 """The confirmation screen and the gate: the only way into line matching."""
 
 import json
+from html import escape
 
 from fastapi import APIRouter, BackgroundTasks, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -15,6 +16,8 @@ from app.web.routes import conflict_page, templates
 
 router = APIRouter()
 CHANGEABLE = {Status.AWAITING_CONFIRMATION, Status.MATCHING_FAILED, Status.IN_REVIEW}
+# An invoice whose sponsor, study and site are currently confirmed.
+CONFIRMED = {Status.MATCHING, Status.MATCHING_FAILED, Status.IN_REVIEW, Status.FINALIZED}
 
 
 def _reference(request: Request):
@@ -46,7 +49,7 @@ def confirm_context(request: Request, invoice_id: int, sponsor_id: int | None, s
         "sites": data.sites,
         "chosen": {"sponsor": chosen_sponsor, "study": chosen_study, "site": (suggestions.get("site") or {}).get("id")},
         "offer": offer,
-        "warnings": _warnings(request, invoice_id, chosen_study, (suggestions.get("site") or {}).get("id"), data),
+        "choice_warnings": _warnings(request, invoice_id, chosen_study, (suggestions.get("site") or {}).get("id"), data),
     }
 
 
@@ -61,7 +64,12 @@ def _warnings(request: Request, invoice_id: int, study_id, site_id, data) -> lis
             mine = s.query(Extraction).filter_by(invoice_id=invoice_id).first()
             number = json.loads(mine.header).get("invoice_number") if mine else None
             if number:
-                for other in s.scalars(select(Invoice).where(Invoice.id != invoice_id, Invoice.confirmed_site_id == site_id)):
+                earlier = select(Invoice).where(
+                    Invoice.id < invoice_id,
+                    Invoice.confirmed_site_id == site_id,
+                    Invoice.status.in_([status.value for status in CONFIRMED]),
+                )
+                for other in s.scalars(earlier):
                     theirs = s.query(Extraction).filter_by(invoice_id=other.id).first()
                     if theirs and json.loads(theirs.header).get("invoice_number") == number:
                         warnings.append(
@@ -73,7 +81,10 @@ def _warnings(request: Request, invoice_id: int, study_id, site_id, data) -> lis
 
 @router.get("/invoices/{invoice_id}/studies", response_class=HTMLResponse)
 def studies(request: Request, invoice_id: int, sponsor_id: int, study_id: int | None = None):
-    choices = _reference(request).list_studies(sponsor_id=sponsor_id)
+    try:
+        choices = _reference(request).list_studies(sponsor_id=sponsor_id)
+    except ReferenceUnavailable as down:
+        return HTMLResponse(f'<option value="">{escape(str(down))}</option>', status_code=503)
     return templates.TemplateResponse(request, "_study_options.html", {"studies": choices, "chosen": study_id})
 
 
@@ -97,17 +108,24 @@ def _refuse(request: Request, invoice_id: int, message: str, status_code: int):
 def confirm(request: Request, invoice_id: int, background_tasks: BackgroundTasks,
             sponsor_id: int = Form(...), study_id: int = Form(...), site_id: int = Form(...)):
     received_at = now_iso()
+    # The status comes first: a wrong status is a 409 whatever the choices are. The claim below
+    # re-checks it atomically.
+    with request.app.state.sessions() as s:
+        invoice = s.get(Invoice, invoice_id)
+        current = Status(invoice.status) if invoice else None
+    if current != Status.AWAITING_CONFIRMATION:
+        return conflict_page(request, invoice_id, current)
     reference = _reference(request)
     try:
         sponsor = reference.get_sponsor(sponsor_id)
         study = reference.get_study(study_id)
         site = reference.get_site(site_id)
+        owner = reference.get_sponsor(study["sponsor_id"]) if study["sponsor_id"] != sponsor["id"] else None
     except ReferenceNotFound as missing:
         return _refuse(request, invoice_id, str(missing), 422)
     except ReferenceUnavailable as down:
         return _refuse(request, invoice_id, f"{down}. Press Confirm to try again.", 503)
-    if study["sponsor_id"] != sponsor["id"]:
-        owner = reference.get_sponsor(study["sponsor_id"])
+    if owner:
         return _refuse(request, invoice_id, f"{study['name']} belongs to {owner['name']}, not {sponsor['name']}.", 422)
 
     names = {"sponsor": sponsor["name"], "study": study["name"], "site": site["name"]}
@@ -155,6 +173,8 @@ def change_metadata(request: Request, invoice_id: int):
                 line_ids = select(LineItem.id).where(LineItem.invoice_id == invoice_id)
                 s.query(LineMatch).filter(LineMatch.line_item_id.in_(line_ids)).delete(synchronize_session=False)
                 s.query(CatalogSnapshotItem).filter_by(invoice_id=invoice_id).delete()
+                invoice.confirmed_sponsor_id = invoice.confirmed_study_id = invoice.confirmed_site_id = None
+                invoice.confirmed_names = None
                 if invoice.status != Status.AWAITING_CONFIRMATION:
                     claim(s, invoice_id, expected={Status(invoice.status)}, new=Status.AWAITING_CONFIRMATION)
         except StatusConflict as conflict:
