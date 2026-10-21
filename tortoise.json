@@ -1,6 +1,6 @@
 {
   "name": "AI Invoice Ingestion Platform",
-  "stage": "gate",
+  "stage": "final-checks",
   "test_command": ".venv/bin/pytest",
   "approvals": [
     {
@@ -133,19 +133,19 @@
         "issue": 12,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwFA",
         "title": "Finalizing and the JSON download (Task 12)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "13": {
         "issue": 13,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwJQ",
         "title": "Live tests on the samples, image files and the hostile-text invoice (Task 13)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "14": {
         "issue": 14,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwLo",
         "title": "Timings, README, write-up and delivery (Task 14)",
-        "status": "Awaiting gate"
+        "status": "Done"
       }
     },
     "field": "PVTSSF_lAHOAwRKms4Bn_FUzhmhMqE",
