@@ -88,3 +88,7 @@ def test_sub_cent_prices_compared_to_the_cent():
     flag = price_flag(D("1.006"), D("1.00"))
     assert flag.text == "Invoice $1.01, catalog $1.00, +$0.01 (+1%)"
     assert (flag.invoice, flag.catalog, flag.diff) == (D("1.01"), D("1.00"), D("0.01"))
+
+
+def test_catalog_price_under_half_a_cent_means_no_fixed_price():
+    assert price_flag(D("0.01"), D("0.004")) is None

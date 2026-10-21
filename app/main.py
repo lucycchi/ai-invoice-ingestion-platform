@@ -52,7 +52,7 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
     @app.exception_handler(HTTPException)
     async def not_found_page(request: Request, exc: HTTPException):
         """A page, not JSON, when someone opens an invoice or page that doesn't exist."""
-        if exc.status_code != 404:
+        if exc.status_code != 404 or request.url.path.endswith(".json"):  # the export answers in JSON
             return await http_exception_handler(request, exc)
         message = exc.detail if exc.detail != "Not Found" else "There's no page at this address."
         return templates.TemplateResponse(request, "not_found.html", {"message": message}, status_code=404)

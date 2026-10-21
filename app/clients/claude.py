@@ -16,11 +16,12 @@ PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
 # Shortest prompt start each model will cache, from Claude's prompt-caching documentation (the Claude API
 # skill's prompt-caching reference). A shorter start is silently not cached.
 MIN_CACHEABLE_TOKENS = {
-    "claude-fable-5-1": 512, "claude-fable-5": 512, "claude-opus-5-5": 512, "claude-opus-5": 512,
-    "claude-sonnet-5-5": 512, "claude-haiku-5-5": 512,
-    "claude-opus-4-8": 1024, "claude-sonnet-5": 1024, "claude-sonnet-4-6": 1024,
+    "claude-fable-5-1": 512, "claude-fable-5": 512, "claude-mythos-5-1": 512, "claude-mythos-5": 512,
+    "claude-opus-5-5": 512, "claude-opus-5": 512, "claude-sonnet-5-5": 512, "claude-haiku-5-5": 512,
+    "claude-opus-4-8": 1024, "claude-sonnet-5": 1024, "claude-sonnet-4-6": 1024, "claude-sonnet-4-5": 1024,
+    "claude-opus-4-1": 1024, "claude-opus-4": 1024, "claude-sonnet-4": 1024,
     "claude-opus-4-7": 2048,
-    "claude-opus-4-6": 4096, "claude-haiku-4-5": 4096,
+    "claude-opus-4-6": 4096, "claude-opus-4-5": 4096, "claude-haiku-4-5": 4096,
 }
 
 

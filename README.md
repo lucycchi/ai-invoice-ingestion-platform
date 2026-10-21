@@ -18,9 +18,10 @@ cp .env.example .env          # then put your key after ANTHROPIC_API_KEY= in .e
 docker compose up --build
 ```
 
-That starts three containers: the provided reference API (port 8000) and its Postgres database, and
-this app. Open **http://localhost:8080** to use it. The reference API's own docs are at
-http://localhost:8000/docs.
+That starts three containers: the provided reference API (port 8000) and its Postgres database (port
+5433), and this app. Open **http://localhost:8080** to use it. The reference API's own docs are at
+http://localhost:8000/docs. All three ports are published on this machine only (127.0.0.1), because the
+provided database's password is in the repository.
 
 `.env` is ignored by Git. Put the key there, never in `.env.example`, which is committed.
 
@@ -32,7 +33,7 @@ http://localhost:8000/docs.
 | `ANTHROPIC_MODEL` | No | `claude-opus-5-5` | The Claude model used for reading and matching. |
 | `REFERENCE_API_URL` | No | `http://api:8000` | Where the reference API is. Inside Docker Compose it is the service name; if you run the app directly on your machine, use `http://localhost:8000`. |
 
-Two more settings exist for special cases and rarely need changing: `DATA_DIR` (default `/data`, where
+Two more settings, also listed in `.env.example`, exist for special cases and rarely need changing: `DATA_DIR` (default `/data`, where
 the app keeps its database and uploaded files inside its container) and `ALLOWED_HOSTS` (default
 `["localhost","127.0.0.1"]`, the only host names the app answers to, which blocks attacks from other
 websites).
@@ -77,7 +78,7 @@ What to expect from each sample:
 
 ```bash
 python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # Python 3.13; or use uv
-.venv/bin/pytest              # 240 tests; free and offline: Claude and the reference API are stand-ins
+.venv/bin/pytest              # 278 tests; free and offline: Claude and the reference API are stand-ins
 .venv/bin/pytest -m live -s   # the live tests: real Claude, the running reference API (start it first)
 ```
 
@@ -201,7 +202,12 @@ app stops repeating a mistake a person has already fixed.
 - Invoice text never changes how the app behaves beyond the suggestions: statuses, the gate, allowed
   catalog IDs, price flags and arithmetic are all decided in code, and a hostile-text test checks it.
 - Real site invoices can contain personal data. The file is sent to Anthropic's API to be read; nothing
-  else leaves the machine.
+  else leaves the machine. The app log records an unexpected error's type and where it happened, never
+  its text, since that could hold invoice content.
+- Uploads over 10 MB are refused while they arrive, before anything is written to disk.
+- **Known limit:** there is no overall cap on paid Claude calls. Each upload costs about 5 cents and each
+  call is tried at most three times, but nothing stops many uploads in a row. For one person on their own
+  machine that was judged acceptable; a shared deployment would need a spending limit first.
 
 ## Where things are
 

@@ -76,7 +76,7 @@ def price_flag(unit_price: Decimal | None, catalog_price: Decimal | None) -> Pri
         return None
     # Compared to the cent, so a sub-cent difference can't show as "+$0.00".
     unit_price, catalog_price = _cents(unit_price), _cents(catalog_price)
-    if unit_price == catalog_price:
+    if not catalog_price or unit_price == catalog_price:  # under half a cent rounds to no fixed price
         return None
     diff = unit_price - catalog_price
     pct = (diff / catalog_price * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)

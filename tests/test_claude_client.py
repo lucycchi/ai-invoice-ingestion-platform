@@ -124,6 +124,7 @@ def test_count_shared_tokens_uses_the_same_system_blocks():
     ("claude-opus-5-5", 512), ("claude-sonnet-5-5", 512), ("claude-haiku-5-5", 512),
     ("claude-opus-4-8", 1024), ("claude-sonnet-5", 1024), ("claude-sonnet-4-6", 1024),
     ("claude-opus-4-7", 2048), ("claude-opus-4-6", 4096), ("claude-haiku-4-5", 4096),
+    ("claude-sonnet-4-5", 1024), ("claude-opus-4-1", 1024), ("claude-opus-4-5", 4096), ("claude-mythos-5-1", 512),
 ])
 def test_min_cacheable_tokens_by_model(model, tokens):
     assert min_cacheable_tokens(model) == tokens

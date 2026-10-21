@@ -200,6 +200,11 @@ def test_unknown_invoice_is_404(env):
     assert env.client.get("/invoices/999/export.json").status_code == 404
 
 
+def test_unknown_export_answers_in_json(env):
+    response = env.client.get("/invoices/999/export.json")
+    assert response.json() == {"detail": "There's no invoice with that number."}
+
+
 def test_no_match_lines_say_so(env):
     invoice_id = env.run()
     _finalize(env, invoice_id, 3, 1)
