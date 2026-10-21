@@ -8,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.clients.claude import MIN_CACHEABLE_TOKENS, PROMPTS, ClaudeFailed, SharedPrompt, Usage
+from app.checks import price_flag
 from app.clients.reference_api import ReferenceUnavailable
 from app.clock import now_iso
 from app.models import CatalogSnapshotItem, Invoice, LineItem, LineMatch, Run
@@ -105,6 +106,8 @@ def run_matching(app, invoice_id: int) -> None:
         pending = (s.query(LineItem).filter(LineItem.invoice_id == invoice_id, LineItem.id.not_in(matched))
                    .order_by(LineItem.position).all())
     line_ids = {line.position: line.id for line in pending}
+    unit_prices = {line.position: line.unit_price for line in pending}
+    catalog_prices = {item.catalog_item_id: item.unit_price for item in snapshot}
     catalog_ids = {item.catalog_item_id for item in snapshot}
     shared = SharedPrompt(instructions=(PROMPTS / "matching_instructions.md").read_text(),
                           catalog_text=catalog_text(snapshot))
@@ -122,7 +125,7 @@ def run_matching(app, invoice_id: int) -> None:
                 return
             tally.add(usage)
             accepted, failed_positions = check_answer(answer, {line["position"] for line in to_send}, catalog_ids)
-            _save(sessions, accepted, line_ids, tally)
+            _save(sessions, accepted, line_ids, unit_prices, catalog_prices, tally)
             to_send = [line for line in to_send if line["position"] in failed_positions]
             if not to_send:
                 return
@@ -145,12 +148,17 @@ def run_matching(app, invoice_id: int) -> None:
     _finish(sessions, invoice_id, tally, cache_applied)
 
 
-def _save(sessions, accepted: dict[int, LineResult], line_ids: dict[int, int], tally: _Tally) -> None:
+def _save(sessions, accepted: dict[int, LineResult], line_ids: dict[int, int], unit_prices: dict, catalog_prices: dict,
+          tally: _Tally) -> None:
     if not accepted:
         return
     with sessions() as s:
         for position, result in accepted.items():
+            flag = None
+            if result.catalog_item_id is not None:
+                flag = price_flag(unit_prices[position], catalog_prices[result.catalog_item_id])
             s.add(LineMatch(
+                price_flag=flag.to_json() if flag else None,
                 line_item_id=line_ids[position],
                 ai_catalog_item_id=result.catalog_item_id,
                 ai_confidence=result.confidence,

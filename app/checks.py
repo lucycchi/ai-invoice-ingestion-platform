@@ -1,5 +1,7 @@
-"""Checks done in plain code: arithmetic on the extracted numbers."""
+"""Checks done in plain code: arithmetic on the extracted numbers, and price flags."""
 
+import json
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.money import format_money
@@ -45,3 +47,55 @@ def arithmetic_warnings(lines, printed_total: Decimal | None, printed_total_text
             f"{format_money(printed_total)}{note}."
         )
     return warnings
+
+
+@dataclass(frozen=True)
+class PriceFlag:
+    invoice: Decimal
+    catalog: Decimal
+    diff: Decimal
+    pct: Decimal
+    text: str
+
+    def to_json(self) -> str:
+        return json.dumps({"invoice": str(self.invoice), "catalog": str(self.catalog), "diff": str(self.diff),
+                           "pct": str(self.pct), "text": self.text})
+
+
+def price_flag(unit_price: Decimal | None, catalog_price: Decimal | None) -> PriceFlag | None:
+    """A flag when a line's unit price differs from its catalog item's, by even one cent.
+
+    A catalog price of zero or empty means no fixed price, and a missing invoice price is covered by the
+    arithmetic check, so neither is flagged.
+    """
+    if unit_price is None or not catalog_price or unit_price == catalog_price:
+        return None
+    diff = unit_price - catalog_price
+    pct = (diff / catalog_price * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    sign = "+" if diff > 0 else "-"
+    pct_text = f"{abs(pct):f}".removesuffix(".0")
+    text = (f"Invoice {format_money(unit_price)}, catalog {format_money(catalog_price)}, "
+            f"{sign}{format_money(abs(diff))} ({sign}{pct_text}%)")
+    return PriceFlag(unit_price, catalog_price, diff, pct, text)
+
+
+def current_item_id(match) -> int | None:
+    """The catalog item a line is matched to now: a person's override if any, else the AI's choice."""
+    if match.override_kind == "item":
+        return match.override_catalog_item_id
+    if match.override_kind == "no_match":
+        return None
+    return match.ai_catalog_item_id
+
+
+def refresh_flag(session, match) -> None:
+    """Recompute a line's price flag from its current catalog item (none for no match)."""
+    from app.models import CatalogSnapshotItem, LineItem
+
+    line = session.get(LineItem, match.line_item_id)
+    item_id = current_item_id(match)
+    item = None if item_id is None else (
+        session.query(CatalogSnapshotItem).filter_by(invoice_id=line.invoice_id, catalog_item_id=item_id).one_or_none()
+    )
+    flag = price_flag(line.unit_price, item.unit_price if item else None)
+    match.price_flag = flag.to_json() if flag else None
