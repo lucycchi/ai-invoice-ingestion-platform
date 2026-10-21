@@ -98,3 +98,20 @@ def test_get_one():
 def test_load_reference_data():
     data = load_reference_data(_client(capped_server(100, [])))
     assert (len(data.sponsors), len(data.studies), len(data.sites), len(data.study_sites)) == (4, 6, 8, 17)
+
+
+@pytest.mark.parametrize("status", [400, 422])
+def test_client_error_on_list_is_unavailable(status):
+    with pytest.raises(ReferenceUnavailable) as err:
+        _client(lambda request: httpx.Response(status, json={"detail": "bad"})).list_sites()
+    assert "http://api:8000" in str(err.value)
+
+
+def test_client_error_on_single_record_is_unavailable():
+    with pytest.raises(ReferenceUnavailable):
+        _client(lambda request: httpx.Response(400, json={"detail": "bad"})).get_site(1)
+
+
+def test_non_json_answer_is_unavailable():
+    with pytest.raises(ReferenceUnavailable):
+        _client(lambda request: httpx.Response(200, text="<html>proxy error</html>")).list_sites()

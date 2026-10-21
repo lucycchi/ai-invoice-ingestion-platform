@@ -40,30 +40,38 @@ class ReferenceClient:
         self.timeout = timeout
         self.http = http or httpx.Client(timeout=timeout)
 
-    def _get(self, path: str, params: dict | None = None) -> httpx.Response:
+    def _get(self, path: str, params: dict | None = None, allow_404: bool = False) -> httpx.Response:
         try:
             response = self.http.get(f"{self.base_url}/api/v1/{path}", params=params, timeout=self.timeout)
         except httpx.HTTPError as err:
             raise ReferenceUnavailable(self.base_url, type(err).__name__) from err
-        if response.status_code >= 500:
+        if response.status_code == 404 and allow_404:
+            return response
+        if not response.is_success:
             raise ReferenceUnavailable(self.base_url, f"HTTP {response.status_code}")
         return response
+
+    def _json(self, response: httpx.Response):
+        try:
+            return response.json()
+        except ValueError as err:
+            raise ReferenceUnavailable(self.base_url, "the answer was not JSON") from err
 
     def _list(self, path: str, page_size: int, **filters) -> list[dict]:
         items, page = [], 1
         while True:
             params = {k: v for k, v in filters.items() if v is not None} | {"page": page, "page_size": page_size}
-            body = self._get(path, params).json()
+            body = self._json(self._get(path, params))
             items += body["items"]
             if page >= body["pages"]:
                 return items
             page += 1
 
     def _one(self, path: str, kind: str, id: int) -> dict:
-        response = self._get(f"{path}/{id}")
+        response = self._get(f"{path}/{id}", allow_404=True)
         if response.status_code == 404:
             raise ReferenceNotFound(kind, id)
-        return response.json()
+        return self._json(response)
 
     def list_sponsors(self) -> list[dict]:
         return self._list("sponsors", LIST_PAGE_SIZE)

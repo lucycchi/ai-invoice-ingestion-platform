@@ -120,3 +120,19 @@ def test_escapes_file_name(client):
 
 def test_invoice_page_unknown(client):
     assert client.get("/invoices/99").status_code == 404
+
+
+def test_rejects_several_files(client):
+    response = client.post("/invoices", files=[("file", ("a.pdf", _pdf(1))), ("file", ("b.pdf", _pdf(1)))])
+    assert response.status_code == 422
+    assert "one file at a time" in response.text
+    assert _invoices(client) == []
+
+
+def test_accepts_restriction_only_pdf(client):
+    writer = PdfWriter()
+    writer.append(PdfReader(io.BytesIO(_pdf(1))))
+    writer.encrypt(user_password="", owner_password="owner-secret")
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    assert _upload(client, buffer.getvalue(), "restricted.pdf").status_code == 303

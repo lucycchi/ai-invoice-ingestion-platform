@@ -17,8 +17,9 @@ refuses any step whose status is wrong, which is what makes the confirmation gat
 
 **Where the project stands.** The intent (`docs/DESIGN.md`, tagged `tortoise/ideas`) and the spec
 (`docs/SPEC.md`, 63 requirements, tagged `tortoise/spec`) are approved. This document is the
-architecture, awaiting review and approval. No application code exists yet; the reference API runs
-and has been checked.
+architecture, approved and tagged `tortoise/architecture`. Milestone 1 is built: the app skeleton,
+database, reference API client, status guard and upload screen. Extraction and the later steps follow
+in milestones 2 to 4.
 
 Requirements are referred to by name with their spec number in brackets, such as "the gate refusing
 early matching (R28)".
@@ -114,7 +115,9 @@ Eleven parts, each one module (section 12 gives the file names):
 7. **Price flag and arithmetic checks** compare prices and add up amounts, in plain code.
 8. **JSON export** builds the download for a finalized invoice.
 9. **Reference API client** is the only code that calls the reference API, and always fetches every
-   page.
+   page. Each request times out after 10 seconds; a connection failure, a timeout, any error answer
+   other than "not found" for a single record, or an answer that isn't JSON raises a "reference API
+   unavailable" error naming the address.
 10. **Claude client** is the only code that calls Claude. It applies timeouts and retries and
     records token counts.
 11. **Data store** holds the SQLite tables in section 3.
@@ -126,7 +129,7 @@ diagram readable.
 
 The app's own database is one SQLite file. SQLite has no exact decimal type, so every money value is
 stored as text holding an exact decimal such as `550.00`, and converted to Python's `Decimal` on the
-way in and out (the exact-money rule, R15). Times are stored as text in ISO 8601 format, such as
+way in and out (the exact-money rule, R15). Values are never rounded when saved: `550` is stored as `550.00`, and a value read with more decimal places keeps them. The diagram shows the column types the code creates; SQLite stores VARCHAR and TEXT alike as text, BOOLEAN as 0 or 1, and FLOAT as a real number. Times are stored as text in ISO 8601 format, such as
 `2026-10-21T14:03:12.481Z`, with milliseconds.
 
 ```mermaid
@@ -140,79 +143,79 @@ erDiagram
 
     INVOICES {
         INTEGER id PK "whole number, given automatically"
-        TEXT status "one of seven status names"
+        VARCHAR status "one of seven status names"
         TEXT status_reason "why it failed, if it did"
         TEXT original_filename "the name the user uploaded"
         TEXT stored_path "generated file name on the volume"
-        TEXT media_type "PDF, PNG, JPEG or WebP"
-        TEXT uploaded_at "time of upload"
-        INTEGER confirmed_sponsor_id "reference API sponsor ID, once confirmed"
-        INTEGER confirmed_study_id "reference API study ID, once confirmed"
-        INTEGER confirmed_site_id "reference API site ID, once confirmed"
+        VARCHAR media_type "PDF, PNG, JPEG or WebP"
+        VARCHAR uploaded_at "time of upload, as ISO 8601 text with milliseconds"
+        INTEGER confirmed_sponsor_id "whole number: reference API sponsor ID, once confirmed"
+        INTEGER confirmed_study_id "whole number: reference API study ID, once confirmed"
+        INTEGER confirmed_site_id "whole number: reference API site ID, once confirmed"
         TEXT confirmed_names "sponsor, study and site names as JSON"
         TEXT finalize_summary "the confirmed summary as JSON"
-        TEXT finalized_at "time of finalizing"
+        VARCHAR finalized_at "time of finalizing, as ISO 8601 text"
     }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice this reading belongs to, unique"
-        INTEGER is_invoice "1 if Claude says it is an invoice"
+        BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
         TEXT header "extracted header fields as JSON"
-        TEXT printed_total "exact decimal, or empty if none"
+        VARCHAR printed_total "exact decimal, or empty if none"
         TEXT arithmetic_warnings "list of warnings as JSON"
         TEXT raw_answer "Claude's full answer as JSON"
-        TEXT model "model name used"
+        VARCHAR model "model name used"
     }
     LINE_ITEMS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice it was read from"
         INTEGER position "order on the invoice, from 1, unique per invoice"
         TEXT description "as printed"
-        REAL quantity "number as printed, or empty if not printed"
-        TEXT unit_price "exact decimal"
-        TEXT amount "exact decimal"
+        FLOAT quantity "number as printed, or empty if not printed"
+        VARCHAR unit_price "exact decimal"
+        VARCHAR amount "exact decimal"
     }
     METADATA_SUGGESTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice suggested for"
-        TEXT field "sponsor, study or site, unique per invoice"
+        VARCHAR field "sponsor, study or site, unique per invoice"
         INTEGER entity_id "suggested reference API ID, or empty"
         TEXT entity_name "suggested name"
-        TEXT confidence "exact, likely, uncertain or not_found"
+        VARCHAR confidence "exact, likely, uncertain or not_found"
         TEXT reasons "list of plain sentences as JSON"
     }
     CATALOG_SNAPSHOT {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice the catalog was fetched for"
         INTEGER catalog_item_id "reference API catalog item ID, unique per invoice"
-        TEXT item_code "such as ADMIN-IRB"
+        VARCHAR item_code "such as ADMIN-IRB"
         TEXT description "catalog description"
-        TEXT category "such as administrative"
-        TEXT unit_price "exact decimal, or empty"
+        VARCHAR category "such as administrative"
+        VARCHAR unit_price "exact decimal, or empty"
     }
     LINE_MATCHES {
         INTEGER id PK "whole number, given automatically"
         INTEGER line_item_id FK "the line this match is for, unique"
         INTEGER ai_catalog_item_id "AI's choice, or empty for no match"
-        TEXT ai_confidence "high, medium or low"
+        VARCHAR ai_confidence "high, medium or low"
         TEXT ai_reason "one sentence"
         TEXT ai_alternatives "up to two item IDs as JSON"
-        TEXT override_kind "none, item or no_match"
+        VARCHAR override_kind "none, item or no_match"
         INTEGER override_catalog_item_id "the person's choice, if any"
         TEXT price_flag "both prices and the difference as JSON, or empty"
     }
     RUNS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice the run worked on"
-        TEXT step "extraction, metadata or matching"
-        TEXT started_at "when the server received the request"
-        TEXT stored_at "when the last result was saved"
-        TEXT shown_at "when the page showed every result"
+        VARCHAR step "extraction, metadata or matching"
+        VARCHAR started_at "time the server received the request, as ISO 8601 text"
+        VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
+        VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
         INTEGER claude_requests "number of calls to Claude"
         INTEGER input_tokens "tokens sent"
         INTEGER output_tokens "tokens received"
         INTEGER cache_read_tokens "tokens read from Claude's cache"
-        INTEGER cache_applied "1 if the first group warmed the cache"
+        BOOLEAN cache_applied "yes or no: the first group warmed the cache"
         TEXT outcome "succeeded or failed, with the reason"
     }
 ```
@@ -264,8 +267,8 @@ sequenceDiagram
     participant A as Reference API client
 
     U->>P: 1. uploads one file
-    P->>P: 2. checks type from contents, size and pages
-    P->>G: 3. creates invoice in extracting status
+    P->>P: 2. checks size, type from contents, then image size or PDF pages
+    P->>P: 3. saves the file, creates invoice in extracting status
     P-->>U: 4. redirects to the invoice page
     G->>R: 5. starts extraction in the background
     R->>C: 6. sends the file, asks for fixed JSON
@@ -281,9 +284,11 @@ sequenceDiagram
 This shows what happens from upload until the confirmation screen is ready.
 
 1. The person picks one file on the upload screen.
-2. The page handler checks the type from the file's first bytes, the 10 MB limit, and for PDFs the
-   20-page limit (the upload checks, R7 and R8). A failure answers at once with HTTP 415 for a wrong
-   type or 413 for too large, and nothing is stored.
+2. The page handler refuses a request holding more than one file (422), reads at most 10 MB plus one
+   byte, and checks the 10 MB limit, the type from the file's first bytes, then the 7 MB image limit or,
+   for PDFs, the 20-page limit and that the PDF opens without a password (the upload checks, R7 and
+   R8). A failure answers at once with HTTP 413 for too large, 415 for a wrong type, or 422 for an
+   unreadable PDF, and nothing is stored.
 3. The file is saved under a generated name (the safe storage rule, R9) and a new invoice row is
    created directly in the extracting status.
 4. The browser is sent to the invoice page, which shows "Reading your invoice…" and asks for progress
@@ -684,7 +689,7 @@ them, but the tests call them directly to prove the gate holds.
 | Method and path | What it does | Refusals |
 |---|---|---|
 | `GET /` | Upload screen and the list of past invoices | |
-| `POST /invoices` | Accepts one upload, starts extraction | 413 too large, 415 wrong type |
+| `POST /invoices` | Accepts one upload, starts extraction | 413 too large, 415 wrong type, 422 unreadable PDF or several files |
 | `GET /invoices/{id}` | The invoice's current screen | 404 unknown invoice |
 | `GET /invoices/{id}/progress` | Part of a page, polled about once a second | |
 | `GET /invoices/{id}/studies?sponsor_id=` | Study picker choices for a sponsor | |
@@ -731,9 +736,15 @@ flowchart TB
 
 This shows where each part lives and which code uses which.
 
-- `app/main.py` creates the FastAPI app, refuses to start without `ANTHROPIC_API_KEY` (R3), sets up
-  the database and runs restart recovery (R31).
-- `app/config.py` (not drawn) reads the three settings from `.env`.
+- `app/__main__.py` (not drawn) is the container's entry point: it reads the settings, exits with code 1
+  and a plain message without `ANTHROPIC_API_KEY` (R3), and starts the server.
+- `app/main.py` creates the FastAPI app, sets up the database, runs restart recovery (R31), and builds
+  the real reference API client from `REFERENCE_API_URL` unless a test passes a stand-in.
+- `app/config.py` (not drawn) reads the settings: the three in `.env`, plus `DATA_DIR` (default
+  `/data`, where the database and uploads live). The API key is held as a secret value that is hidden
+  when the settings are printed.
+- `app/uploads.py` (not drawn) checks an upload and stores it under a generated name.
+- `app/clock.py` (not drawn) gives the current time as ISO 8601 text.
 - `app/web/` holds the route handlers, the Jinja2 templates and the static htmx file.
 - `app/status.py` holds the table of allowed moves and the claim function. It is the only place a
   status is written.

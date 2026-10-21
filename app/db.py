@@ -18,7 +18,11 @@ class Money(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return str(Decimal(value).quantize(Decimal("0.01")))
+        if isinstance(value, float):
+            raise TypeError("Money must be a Decimal, never a float.")
+        amount = Decimal(value)
+        # Pad to two decimal places, but never round away extra digits that were actually read.
+        return str(amount.quantize(Decimal("0.01")) if amount.as_tuple().exponent > -2 else amount)
 
     def process_result_value(self, value, dialect):
         return None if value is None else Decimal(value)

@@ -100,3 +100,70 @@ def test_fail_from_extracting(sessions):
         fail(s, invoice_id, "boom")
         s.commit()
     assert _status(sessions, invoice_id) == ("extraction_failed", "boom")
+
+
+def test_locked_invoice_rereads_stale_copy(sessions):
+    invoice_id = _invoice(sessions, Status.IN_REVIEW)
+    with sessions() as a:
+        assert a.get(Invoice, invoice_id).confirmed_study_id is None
+        with sessions() as b:
+            b.get(Invoice, invoice_id).confirmed_study_id = 5
+            b.commit()
+        with locked_invoice(a, invoice_id, allowed={Status.IN_REVIEW}) as invoice:
+            assert invoice.confirmed_study_id == 5
+
+
+def test_concurrent_claims_only_one_wins(sessions):
+    import threading
+
+    invoice_id = _invoice(sessions, Status.AWAITING_CONFIRMATION)
+    barrier = threading.Barrier(2)
+    results = []
+
+    def attempt():
+        with sessions() as s:
+            barrier.wait()
+            try:
+                claim(s, invoice_id, expected={Status.AWAITING_CONFIRMATION}, new=Status.MATCHING)
+                s.commit()
+                results.append("won")
+            except StatusConflict:
+                s.rollback()
+                results.append("lost")
+
+    threads = [threading.Thread(target=attempt) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(results) == ["lost", "won"]
+
+
+def test_second_writer_waits_for_lock(sessions):
+    import threading
+    import time
+
+    invoice_id = _invoice(sessions, Status.IN_REVIEW)
+    order = []
+    holding = threading.Event()
+
+    def holder():
+        with sessions() as s:
+            with locked_invoice(s, invoice_id, allowed={Status.IN_REVIEW}) as invoice:
+                holding.set()
+                time.sleep(0.5)
+                invoice.status_reason = "first"
+                order.append("first done")
+
+    def second():
+        holding.wait()
+        with sessions() as s:
+            with locked_invoice(s, invoice_id, allowed={Status.IN_REVIEW}) as invoice:
+                order.append(f"second saw {invoice.status_reason}")
+
+    threads = [threading.Thread(target=holder), threading.Thread(target=second)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert order == ["first done", "second saw first"]

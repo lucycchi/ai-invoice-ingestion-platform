@@ -1,7 +1,7 @@
 {
   "name": "AI Invoice Ingestion Platform",
-  "stage": "plan",
-  "test_command": "pytest",
+  "stage": "gate",
+  "test_command": ".venv/bin/pytest",
   "approvals": [
     {
       "stage": "ideas",
@@ -22,6 +22,125 @@
       "stage": "plan",
       "date": "2026-10-20",
       "tag": "tortoise/plan"
+    },
+    {
+      "stage": "gate",
+      "date": "2026-10-20",
+      "tag": "tortoise/milestone-1",
+      "milestone": 1
     }
-  ]
+  ],
+  "milestone": 1,
+  "milestones": 4,
+  "board": {
+    "number": 5,
+    "id": "PVT_kwHOAwRKms4Bn_FU",
+    "url": "https://github.com/users/lucycchi/projects/5",
+    "owner": "lucycchi",
+    "repo": "lucycchi/ai-invoice-ingestion-platform",
+    "milestones": [
+      "The app runs and reaches the reference data (Milestone 1)",
+      "Reading invoices and confirming their metadata (Milestone 2)",
+      "Matching lines and reviewing them (Milestone 3)",
+      "Finalizing, proof on the samples, and delivery (Milestone 4)"
+    ],
+    "cards": {
+      "1": {
+        "issue": 1,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQviQ",
+        "title": "App skeleton, settings, database and Docker service (Task 1)",
+        "status": "Awaiting gate"
+      },
+      "2": {
+        "issue": 2,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvkc",
+        "title": "Reference API client that fetches every page (Task 2)",
+        "status": "Awaiting gate"
+      },
+      "3": {
+        "issue": 3,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvnI",
+        "title": "Status guard, claims and restart recovery (Task 3)",
+        "status": "Awaiting gate"
+      },
+      "4": {
+        "issue": 4,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvpI",
+        "title": "Upload screen, file checks and invoice list (Task 4)",
+        "status": "Awaiting gate"
+      },
+      "5": {
+        "issue": 5,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvs0",
+        "title": "Claude client with structured answers, retries and usage counts (Task 5)",
+        "status": "To do"
+      },
+      "6": {
+        "issue": 6,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQvv8",
+        "title": "Extraction step, arithmetic checks and progress page (Task 6)",
+        "status": "To do"
+      },
+      "7": {
+        "issue": 7,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv0M",
+        "title": "Metadata matching rules (Task 7)",
+        "status": "To do"
+      },
+      "8": {
+        "issue": 8,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv3k",
+        "title": "Confirmation screen, warnings and the gate (Task 8)",
+        "status": "To do"
+      },
+      "9": {
+        "issue": 9,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv7s",
+        "title": "Line matching step with groups, cache, checks and retries (Task 9)",
+        "status": "To do"
+      },
+      "10": {
+        "issue": 10,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv-g",
+        "title": "Price flags (Task 10)",
+        "status": "To do"
+      },
+      "11": {
+        "issue": 11,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwB4",
+        "title": "Review screen with progress, overrides and on-screen timing (Task 11)",
+        "status": "To do"
+      },
+      "12": {
+        "issue": 12,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwFA",
+        "title": "Finalizing and the JSON download (Task 12)",
+        "status": "To do"
+      },
+      "13": {
+        "issue": 13,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwJQ",
+        "title": "Live tests on the samples, image files and the hostile-text invoice (Task 13)",
+        "status": "To do"
+      },
+      "14": {
+        "issue": 14,
+        "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwLo",
+        "title": "Timings, README, write-up and delivery (Task 14)",
+        "status": "To do"
+      }
+    },
+    "field": "PVTSSF_lAHOAwRKms4Bn_FUzhmhMqE",
+    "options": {
+      "To do": "17cd5968",
+      "In progress": "1e27916b",
+      "Awaiting gate": "a1732a5e",
+      "Done": "9c12baa8"
+    }
+  },
+  "last_gate": {
+    "milestone": 1,
+    "passed": true,
+    "fingerprint": "093f18dd97dc46035c70b3b35e7416c62cd5f8b3"
+  }
 }

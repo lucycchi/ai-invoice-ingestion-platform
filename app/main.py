@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.clients.reference_api import ReferenceClient
 from app.config import Settings
 from app.db import make_engine, session_factory
 from app.models import Base
@@ -29,7 +30,7 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
             recover_interrupted(session)
             session.commit()
         app.state.claude = claude
-        app.state.reference = reference
+        app.state.reference = reference or ReferenceClient(settings.reference_api_url)
         yield
         engine.dispose()
 

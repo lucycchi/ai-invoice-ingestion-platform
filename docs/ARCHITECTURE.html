@@ -50,7 +50,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <h2>Summary</h2>
 <p><strong>The problem.</strong> A clinical trial site sends an invoice to the drug company paying for the trial (the sponsor). Someone has to tie the invoice to the right sponsor, study and site, and check each billed line against the approved items and prices for that sponsor and study (the catalog). The take-home brief adds one hard rule: line items may only be matched after a person has confirmed the sponsor and study, because those decide which catalog applies.</p>
 <p><strong>The approach.</strong> One Python web app, built with FastAPI and plain server-rendered pages, runs as a third container next to the provided reference API and its Postgres database. It keeps its own data in an SQLite file on a Docker volume. Claude (<code>claude-opus-5-5</code>) reads each uploaded file and later suggests a catalog item for each line. Matching the invoice's header facts to sponsors, studies and sites is ordinary code. Every step is guarded by a stored status on the invoice, and the server refuses any step whose status is wrong, which is what makes the confirmation gate real.</p>
-<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, awaiting review and approval. No application code exists yet; the reference API runs and has been checked.</p>
+<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. Milestone 1 is built: the app skeleton, database, reference API client, status guard and upload screen. Extraction and the later steps follow in milestones 2 to 4.</p>
 <p>Requirements are referred to by name with their spec number in brackets, such as "the gate refusing early matching (R28)".</p>
 <h2>Diagrams in this document</h2>
 <table>
@@ -139,7 +139,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li><strong>JSON export</strong> builds the download for a finalized invoice.</li>
 <li><strong>Reference API client</strong> is the only code that calls the reference API, and always fetches every</li>
 </ol>
-<p>page.</p>
+<p>page. Each request times out after 10 seconds; a connection failure, a timeout, any error answer other than "not found" for a single record, or an answer that isn't JSON raises a "reference API unavailable" error naming the address.</p>
 <ol>
 <li><strong>Claude client</strong> is the only code that calls Claude. It applies timeouts and retries and</li>
 </ol>
@@ -149,7 +149,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ol>
 <p>The pages also read the data store directly to draw each screen; that arrow is left out to keep the diagram readable.</p>
 <h2>3. Database diagram</h2>
-<p>The app's own database is one SQLite file. SQLite has no exact decimal type, so every money value is stored as text holding an exact decimal such as <code>550.00</code>, and converted to Python's <code>Decimal</code> on the way in and out (the exact-money rule, R15). Times are stored as text in ISO 8601 format, such as <code>2026-10-21T14:03:12.481Z</code>, with milliseconds.</p>
+<p>The app's own database is one SQLite file. SQLite has no exact decimal type, so every money value is stored as text holding an exact decimal such as <code>550.00</code>, and converted to Python's <code>Decimal</code> on the way in and out (the exact-money rule, R15). Values are never rounded when saved: <code>550</code> is stored as <code>550.00</code>, and a value read with more decimal places keeps them. The diagram shows the column types the code creates; SQLite stores VARCHAR and TEXT alike as text, BOOLEAN as 0 or 1, and FLOAT as a real number. Times are stored as text in ISO 8601 format, such as <code>2026-10-21T14:03:12.481Z</code>, with milliseconds.</p>
 <pre class="mermaid">erDiagram
     INVOICES ||--o| EXTRACTIONS : "has at most one"
     INVOICES ||--o{ LINE_ITEMS : "has"
@@ -160,79 +160,79 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 
     INVOICES {
         INTEGER id PK "whole number, given automatically"
-        TEXT status "one of seven status names"
+        VARCHAR status "one of seven status names"
         TEXT status_reason "why it failed, if it did"
         TEXT original_filename "the name the user uploaded"
         TEXT stored_path "generated file name on the volume"
-        TEXT media_type "PDF, PNG, JPEG or WebP"
-        TEXT uploaded_at "time of upload"
-        INTEGER confirmed_sponsor_id "reference API sponsor ID, once confirmed"
-        INTEGER confirmed_study_id "reference API study ID, once confirmed"
-        INTEGER confirmed_site_id "reference API site ID, once confirmed"
+        VARCHAR media_type "PDF, PNG, JPEG or WebP"
+        VARCHAR uploaded_at "time of upload, as ISO 8601 text with milliseconds"
+        INTEGER confirmed_sponsor_id "whole number: reference API sponsor ID, once confirmed"
+        INTEGER confirmed_study_id "whole number: reference API study ID, once confirmed"
+        INTEGER confirmed_site_id "whole number: reference API site ID, once confirmed"
         TEXT confirmed_names "sponsor, study and site names as JSON"
         TEXT finalize_summary "the confirmed summary as JSON"
-        TEXT finalized_at "time of finalizing"
+        VARCHAR finalized_at "time of finalizing, as ISO 8601 text"
     }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice this reading belongs to, unique"
-        INTEGER is_invoice "1 if Claude says it is an invoice"
+        BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
         TEXT header "extracted header fields as JSON"
-        TEXT printed_total "exact decimal, or empty if none"
+        VARCHAR printed_total "exact decimal, or empty if none"
         TEXT arithmetic_warnings "list of warnings as JSON"
         TEXT raw_answer "Claude's full answer as JSON"
-        TEXT model "model name used"
+        VARCHAR model "model name used"
     }
     LINE_ITEMS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice it was read from"
         INTEGER position "order on the invoice, from 1, unique per invoice"
         TEXT description "as printed"
-        REAL quantity "number as printed, or empty if not printed"
-        TEXT unit_price "exact decimal"
-        TEXT amount "exact decimal"
+        FLOAT quantity "number as printed, or empty if not printed"
+        VARCHAR unit_price "exact decimal"
+        VARCHAR amount "exact decimal"
     }
     METADATA_SUGGESTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice suggested for"
-        TEXT field "sponsor, study or site, unique per invoice"
+        VARCHAR field "sponsor, study or site, unique per invoice"
         INTEGER entity_id "suggested reference API ID, or empty"
         TEXT entity_name "suggested name"
-        TEXT confidence "exact, likely, uncertain or not_found"
+        VARCHAR confidence "exact, likely, uncertain or not_found"
         TEXT reasons "list of plain sentences as JSON"
     }
     CATALOG_SNAPSHOT {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice the catalog was fetched for"
         INTEGER catalog_item_id "reference API catalog item ID, unique per invoice"
-        TEXT item_code "such as ADMIN-IRB"
+        VARCHAR item_code "such as ADMIN-IRB"
         TEXT description "catalog description"
-        TEXT category "such as administrative"
-        TEXT unit_price "exact decimal, or empty"
+        VARCHAR category "such as administrative"
+        VARCHAR unit_price "exact decimal, or empty"
     }
     LINE_MATCHES {
         INTEGER id PK "whole number, given automatically"
         INTEGER line_item_id FK "the line this match is for, unique"
         INTEGER ai_catalog_item_id "AI's choice, or empty for no match"
-        TEXT ai_confidence "high, medium or low"
+        VARCHAR ai_confidence "high, medium or low"
         TEXT ai_reason "one sentence"
         TEXT ai_alternatives "up to two item IDs as JSON"
-        TEXT override_kind "none, item or no_match"
+        VARCHAR override_kind "none, item or no_match"
         INTEGER override_catalog_item_id "the person's choice, if any"
         TEXT price_flag "both prices and the difference as JSON, or empty"
     }
     RUNS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "the invoice the run worked on"
-        TEXT step "extraction, metadata or matching"
-        TEXT started_at "when the server received the request"
-        TEXT stored_at "when the last result was saved"
-        TEXT shown_at "when the page showed every result"
+        VARCHAR step "extraction, metadata or matching"
+        VARCHAR started_at "time the server received the request, as ISO 8601 text"
+        VARCHAR stored_at "time the last result was saved, as ISO 8601 text"
+        VARCHAR shown_at "time the page showed every result, as ISO 8601 text"
         INTEGER claude_requests "number of calls to Claude"
         INTEGER input_tokens "tokens sent"
         INTEGER output_tokens "tokens received"
         INTEGER cache_read_tokens "tokens read from Claude's cache"
-        INTEGER cache_applied "1 if the first group warmed the cache"
+        BOOLEAN cache_applied "yes or no: the first group warmed the cache"
         TEXT outcome "succeeded or failed, with the reason"
     }</pre>
 <p>This shows the seven tables and how they link. Every table has its own <code>id</code>. The database also enforces these uniqueness rules, so the "at most one" links can't be broken by a bug: one extraction per invoice, one suggestion per field per invoice, one line per position per invoice, one catalog snapshot row per catalog item per invoice, and one match per line. Quantities are stored as numbers (the numbers rule, R15) and turned into exact decimals before any arithmetic. In words:</p>
@@ -277,8 +277,8 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     participant A as Reference API client
 
     U-&gt;&gt;P: 1. uploads one file
-    P-&gt;&gt;P: 2. checks type from contents, size and pages
-    P-&gt;&gt;G: 3. creates invoice in extracting status
+    P-&gt;&gt;P: 2. checks size, type from contents, then image size or PDF pages
+    P-&gt;&gt;P: 3. saves the file, creates invoice in extracting status
     P--&gt;&gt;U: 4. redirects to the invoice page
     G-&gt;&gt;R: 5. starts extraction in the background
     R-&gt;&gt;C: 6. sends the file, asks for fixed JSON
@@ -292,9 +292,9 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <p>This shows what happens from upload until the confirmation screen is ready.</p>
 <ol>
 <li>The person picks one file on the upload screen.</li>
-<li>The page handler checks the type from the file's first bytes, the 10 MB limit, and for PDFs the</li>
+<li>The page handler refuses a request holding more than one file (422), reads at most 10 MB plus one</li>
 </ol>
-<p>20-page limit (the upload checks, R7 and R8). A failure answers at once with HTTP 415 for a wrong type or 413 for too large, and nothing is stored.</p>
+<p>byte, and checks the 10 MB limit, the type from the file's first bytes, then the 7 MB image limit or, for PDFs, the 20-page limit and that the PDF opens without a password (the upload checks, R7 and R8). A failure answers at once with HTTP 413 for too large, 415 for a wrong type, or 422 for an unreadable PDF, and nothing is stored.</p>
 <ol>
 <li>The file is saved under a generated name (the safe storage rule, R9) and a new invoice row is</li>
 </ol>
@@ -667,7 +667,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <thead><tr><th>Method and path</th><th>What it does</th><th>Refusals</th></tr></thead>
 <tbody>
 <tr><td><code>GET /</code></td><td>Upload screen and the list of past invoices</td><td></td></tr>
-<tr><td><code>POST /invoices</code></td><td>Accepts one upload, starts extraction</td><td>413 too large, 415 wrong type</td></tr>
+<tr><td><code>POST /invoices</code></td><td>Accepts one upload, starts extraction</td><td>413 too large, 415 wrong type, 422 unreadable PDF or several files</td></tr>
 <tr><td><code>GET /invoices/{id}</code></td><td>The invoice's current screen</td><td>404 unknown invoice</td></tr>
 <tr><td><code>GET /invoices/{id}/progress</code></td><td>Part of a page, polled about once a second</td><td></td></tr>
 <tr><td><code>GET /invoices/{id}/studies?sponsor_id=</code></td><td>Study picker choices for a sponsor</td><td></td></tr>
@@ -708,11 +708,20 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     jobs --&gt;|"saves through"| db</pre>
 <p>This shows where each part lives and which code uses which.</p>
 <ul>
-<li><code>app/main.py</code> creates the FastAPI app, refuses to start without <code>ANTHROPIC_API_KEY</code> (R3), sets up</li>
+<li><code>app/__main__.py</code> (not drawn) is the container's entry point: it reads the settings, exits with code 1</li>
 </ul>
-<p>the database and runs restart recovery (R31).</p>
+<p>and a plain message without <code>ANTHROPIC_API_KEY</code> (R3), and starts the server.</p>
 <ul>
-<li><code>app/config.py</code> (not drawn) reads the three settings from <code>.env</code>.</li>
+<li><code>app/main.py</code> creates the FastAPI app, sets up the database, runs restart recovery (R31), and builds</li>
+</ul>
+<p>the real reference API client from <code>REFERENCE_API_URL</code> unless a test passes a stand-in.</p>
+<ul>
+<li><code>app/config.py</code> (not drawn) reads the settings: the three in <code>.env</code>, plus <code>DATA_DIR</code> (default</li>
+</ul>
+<p><code>/data</code>, where the database and uploads live). The API key is held as a secret value that is hidden when the settings are printed.</p>
+<ul>
+<li><code>app/uploads.py</code> (not drawn) checks an upload and stores it under a generated name.</li>
+<li><code>app/clock.py</code> (not drawn) gives the current time as ISO 8601 text.</li>
 <li><code>app/web/</code> holds the route handlers, the Jinja2 templates and the static htmx file.</li>
 <li><code>app/status.py</code> holds the table of allowed moves and the claim function. It is the only place a</li>
 </ul>

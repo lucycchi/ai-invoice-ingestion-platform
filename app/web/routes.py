@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.clock import now_iso
 from app.models import Invoice
 from app.status import Status
-from app.uploads import UploadRejected, check_upload, store
+from app.uploads import MAX_FILE_BYTES, UploadRejected, check_upload, store
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
@@ -42,8 +42,11 @@ def upload_page(request: Request, message: str | None = None, status_code: int =
 
 
 @router.post("/invoices")
-async def upload(request: Request, file: UploadFile = File(...)):
-    data = await file.read()
+async def upload(request: Request, file: list[UploadFile] = File(...)):
+    if len(file) != 1:
+        return upload_page(request, message="Please upload one file at a time.", status_code=422)
+    file = file[0]
+    data = await file.read(MAX_FILE_BYTES + 1)  # never read more than the limit into memory
     try:
         info = check_upload(data, file.filename or "")
     except UploadRejected as rejected:

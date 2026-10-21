@@ -56,3 +56,25 @@ def test_startup_recovers_interrupted_work(settings):
         with client.app.state.sessions() as s:
             invoice = s.query(Invoice).one()
     assert (invoice.status, invoice.status_reason) == ("matching_failed", "Interrupted by an app restart")
+
+
+def test_key_hidden_when_settings_printed(settings):
+    assert "SECRET123" not in repr(settings)
+    assert "SECRET123" not in str(settings)
+    assert settings.anthropic_api_key.get_secret_value() == "sk-test-SECRET123"
+
+
+def test_key_not_on_error_pages(settings):
+    with TestClient(create_app(settings)) as client:
+        for path in ("/", "/invoices/99", "/nope"):
+            assert "SECRET123" not in client.get(path).text
+
+
+def test_real_reference_client_built_from_setting(settings):
+    from app.clients.reference_api import ReferenceClient
+
+    settings.reference_api_url = "http://example-ref:9000"
+    with TestClient(create_app(settings)) as client:
+        reference = client.app.state.reference
+    assert isinstance(reference, ReferenceClient)
+    assert reference.base_url == "http://example-ref:9000"

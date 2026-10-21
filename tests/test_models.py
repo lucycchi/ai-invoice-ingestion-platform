@@ -61,3 +61,19 @@ def test_wal_mode(tmp_path):
     engine = make_engine(tmp_path / "app.db")
     with engine.connect() as conn:
         assert conn.execute(text("PRAGMA journal_mode")).scalar_one() == "wal"
+
+
+def test_money_never_rounded(session):
+    invoice = _invoice(session)
+    session.add(LineItem(invoice_id=invoice.id, position=1, unit_price=Decimal("1.005"), amount=Decimal("550")))
+    session.commit()
+    stored = session.execute(text("SELECT unit_price, amount FROM line_items")).one()
+    assert tuple(stored) == ("1.005", "550.00")
+
+
+def test_money_refuses_float(session):
+    invoice = _invoice(session)
+    session.add(LineItem(invoice_id=invoice.id, position=1, unit_price=0.1))
+    with pytest.raises(Exception) as err:
+        session.flush()
+    assert "float" in str(err.value).lower()

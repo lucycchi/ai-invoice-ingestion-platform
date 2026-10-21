@@ -47,7 +47,9 @@ def _media_type(data: bytes) -> str | None:
 def _pdf_pages(data: bytes) -> int:
     try:
         reader = PdfReader(io.BytesIO(data))
-        if reader.is_encrypted:
+        # A PDF that only restricts printing or copying opens with an empty password; one that
+        # needs a password to open does not.
+        if reader.is_encrypted and not reader.decrypt(""):
             raise UploadRejected(422, UNREADABLE_PDF)
         pages = len(reader.pages)
     except (PyPdfError, ValueError, OSError) as err:

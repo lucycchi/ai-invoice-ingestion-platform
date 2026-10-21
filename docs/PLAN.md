@@ -286,7 +286,7 @@ Steps:
 4. Implement the routes and templates. The invoice list shows the invoice number once it is known.
 5. Run the tests. Expected: PASS.
 6. Open `http://localhost:8080` and upload `simple-invoice.pdf`. Expected: it appears in the list as
-   `extracting`.
+   "Reading" (the screen's label for the `extracting` status).
 7. Commit: "feat(app): upload screen with file checks".
 
 ---
@@ -421,6 +421,9 @@ Steps:
      reason `Unexpected error (RuntimeError); details are in the app log`, without the message text.
    - `test_missing_file`: deleting the stored file before running sets `extraction_failed` with reason
      `The uploaded file is missing; please upload it again`.
+   - `test_list_shows_invoice_number`: after extraction of the simple invoice, `GET /` shows `INV-2024-001`
+     beside `simple-invoice.pdf` (the list reads the number from the extraction's header; raised by the
+     milestone 1 reviews).
    - `test_run_recorded`: one `Run` row with step `extraction`, `claude_requests == 1`, the token counts
      from the fake, and both times set.
 4. Run the three test files. Expected: FAIL.

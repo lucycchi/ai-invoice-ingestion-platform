@@ -80,7 +80,10 @@ def locked_invoice(session: Session, invoice_id: int, allowed: set[Status]):
         session.rollback()
         raise StatusConflict(current=current)
     try:
-        yield session.get(Invoice, invoice_id)
+        invoice = session.execute(
+            select(Invoice).where(Invoice.id == invoice_id).execution_options(populate_existing=True)
+        ).scalar_one()
+        yield invoice
         session.commit()
     except Exception:
         session.rollback()
