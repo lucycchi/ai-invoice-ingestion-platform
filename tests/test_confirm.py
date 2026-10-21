@@ -20,7 +20,13 @@ SAMPLES = {
 
 @pytest.fixture
 def env(settings):
-    claude = FakeClaude(extraction=saved_extraction("simple_invoice"))
+    from app.schemas import GroupAnswer, LineResult
+
+    # Matching answers "no match" for every line; these tests are about confirmation, not matching.
+    no_match = lambda number, lines: GroupAnswer(results=[
+        LineResult(position=line["position"], catalog_item_id=None, confidence="low", reason="r", alternatives=[])
+        for line in lines])
+    claude = FakeClaude(extraction=saved_extraction("simple_invoice"), match=no_match)
     reference = FakeReference()
     with TestClient(create_app(settings, claude=claude, reference=reference), follow_redirects=False) as client:
         yield client, claude, reference
@@ -76,7 +82,7 @@ def test_confirm_starts_matching(env):
     response = _confirm(env, invoice_id, 2, 3, 1)
     assert response.status_code == 303 and response.headers["location"] == f"/invoices/{invoice_id}"
     invoice = _invoice(env, invoice_id)
-    assert invoice.status == "matching"
+    assert invoice.status == "in_review"  # matching ran in the background after Confirm
     assert (invoice.confirmed_sponsor_id, invoice.confirmed_study_id, invoice.confirmed_site_id) == (2, 3, 1)
     assert json.loads(invoice.confirmed_names) == {
         "sponsor": "Contoso Therapeutics", "study": "CATALYST Trial", "site": "Willow Creek Clinical Research Center"
@@ -89,6 +95,7 @@ def test_confirm_starts_matching(env):
 def test_double_confirm_refused(env):
     invoice_id = _upload(env)
     _confirm(env, invoice_id, 2, 3, 1)
+    _set_status(env, invoice_id, "matching")  # as if the second click arrived while matching ran
     response = _confirm(env, invoice_id, 2, 3, 1)
     assert response.status_code == 409
     assert "Matching line items is already running" in response.text
@@ -97,6 +104,7 @@ def test_double_confirm_refused(env):
 def test_back_button_resubmit_friendly(env):
     invoice_id = _upload(env)
     _confirm(env, invoice_id, 2, 3, 1)
+    _set_status(env, invoice_id, "matching")
     response = _confirm(env, invoice_id, 2, 3, 1)
     assert response.headers["content-type"].startswith("text/html")
     assert f'href="/invoices/{invoice_id}"' in response.text
@@ -157,14 +165,13 @@ def test_duplicate_warning(env):
     assert "INV-2024-042" not in other_site
 
 
-def _fake_matches(env, invoice_id, overridden=2):
+def _override_some(env, invoice_id, overridden=2):
+    """Mark the first matches as overridden by a person (matching itself ran after Confirm)."""
     with env[0].app.state.sessions() as s:
-        lines = s.query(LineItem).filter_by(invoice_id=invoice_id).all()
-        for n, line in enumerate(lines):
-            s.add(LineMatch(line_item_id=line.id, ai_catalog_item_id=1, ai_confidence="high", ai_reason="r",
-                            override_kind="item" if n < overridden else "none",
-                            override_catalog_item_id=2 if n < overridden else None))
-        s.add(CatalogSnapshotItem(invoice_id=invoice_id, catalog_item_id=1, item_code="X", description="x"))
+        matches = (s.query(LineMatch).join(LineItem, LineMatch.line_item_id == LineItem.id)
+                   .filter(LineItem.invoice_id == invoice_id).order_by(LineItem.position).limit(overridden).all())
+        for match in matches:
+            match.override_kind = "no_match"
         s.commit()
 
 
@@ -176,8 +183,9 @@ def _count(env, model, **where):
 def test_change_metadata_warns_and_clears(env):
     invoice_id = _upload(env, "large_invoice")
     _confirm(env, invoice_id, 1, 1, 3)
-    _set_status(env, invoice_id, "in_review")
-    _fake_matches(env, invoice_id)
+    assert _invoice(env, invoice_id).status == "in_review"
+    assert _count(env, CatalogSnapshotItem, invoice_id=invoice_id) == 100
+    _override_some(env, invoice_id)
     assert "This will clear 27 matches and 2 overrides" in env[0].get(f"/invoices/{invoice_id}/change-metadata").text
     response = env[0].post(f"/invoices/{invoice_id}/change-metadata")
     assert response.status_code == 303
@@ -190,6 +198,7 @@ def test_change_metadata_warns_and_clears(env):
 def test_change_metadata_refused_while_matching(env):
     invoice_id = _upload(env)
     _confirm(env, invoice_id, 2, 3, 1)
+    _set_status(env, invoice_id, "matching")
     assert env[0].post(f"/invoices/{invoice_id}/change-metadata").status_code == 409
 
 

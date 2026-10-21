@@ -1,0 +1,555 @@
+{
+ "simple_invoice": {
+  "file": "simple-invoice.pdf",
+  "sponsor": {
+   "id": 2,
+   "levels": [
+    "exact"
+   ]
+  },
+  "study": {
+   "id": 3,
+   "levels": [
+    "exact"
+   ]
+  },
+  "site": {
+   "id": 1,
+   "levels": [
+    "exact"
+   ]
+  },
+  "total": "2230.00",
+  "lines": [
+   {
+    "position": 1,
+    "description": "Site Management Fee",
+    "quantity": "1",
+    "unit_price": "400.00",
+    "item_code": "ADMIN-SITE",
+    "catalog_item_id": 117,
+    "price_flag": null
+   },
+   {
+    "position": 2,
+    "description": "Screening Visit",
+    "quantity": "2",
+    "unit_price": "480.00",
+    "item_code": "VISIT-SCR",
+    "catalog_item_id": 111,
+    "price_flag": null
+   },
+   {
+    "position": 3,
+    "description": "Baseline Visit",
+    "quantity": "1",
+    "unit_price": "550.00",
+    "item_code": "VISIT-BL",
+    "catalog_item_id": 112,
+    "price_flag": null
+   },
+   {
+    "position": 4,
+    "description": "Complete Blood Count",
+    "quantity": "1",
+    "unit_price": "95.00",
+    "item_code": "LAB-CBC",
+    "catalog_item_id": 116,
+    "price_flag": null
+   },
+   {
+    "position": 5,
+    "description": "IV Infusion Administration",
+    "quantity": "1",
+    "unit_price": "225.00",
+    "item_code": "PROC-INFUS",
+    "catalog_item_id": 115,
+    "price_flag": null
+   }
+  ]
+ },
+ "medium_invoice": {
+  "file": "medium-invoice.pdf",
+  "sponsor": {
+   "id": 1,
+   "levels": [
+    "exact"
+   ]
+  },
+  "study": {
+   "id": 1,
+   "levels": [
+    "exact"
+   ]
+  },
+  "site": {
+   "id": 2,
+   "levels": [
+    "exact"
+   ]
+  },
+  "total": "7145.00",
+  "lines": [
+   {
+    "position": 1,
+    "description": "Site Administration Fee",
+    "quantity": "1",
+    "unit_price": "350.00",
+    "item_code": "ADMIN-SITE",
+    "catalog_item_id": 26,
+    "price_flag": null
+   },
+   {
+    "position": 2,
+    "description": "Screening Visit",
+    "quantity": "3",
+    "unit_price": "450.00",
+    "item_code": "VISIT-SCR",
+    "catalog_item_id": 1,
+    "price_flag": null
+   },
+   {
+    "position": 3,
+    "description": "Baseline Assessment",
+    "quantity": "2",
+    "unit_price": "525.00",
+    "item_code": "VISIT-BL",
+    "catalog_item_id": 2,
+    "price_flag": null
+   },
+   {
+    "position": 4,
+    "description": "Week 4 Follow-up",
+    "quantity": "2",
+    "unit_price": "475.00",
+    "item_code": "VISIT-WK4",
+    "catalog_item_id": 3,
+    "price_flag": null
+   },
+   {
+    "position": 5,
+    "description": "Week 8 Follow-up",
+    "quantity": "2",
+    "unit_price": "475.00",
+    "item_code": "VISIT-WK8",
+    "catalog_item_id": 4,
+    "price_flag": null
+   },
+   {
+    "position": 6,
+    "description": "12-Lead ECG",
+    "quantity": "5",
+    "unit_price": "85.00",
+    "item_code": "PROC-ECG",
+    "catalog_item_id": 11,
+    "price_flag": null
+   },
+   {
+    "position": 7,
+    "description": "CBC",
+    "quantity": "4",
+    "unit_price": "95.00",
+    "item_code": "LAB-CBC",
+    "catalog_item_id": 16,
+    "price_flag": null
+   },
+   {
+    "position": 8,
+    "description": "CMP",
+    "quantity": "4",
+    "unit_price": "110.00",
+    "item_code": "LAB-CMP",
+    "catalog_item_id": 17,
+    "price_flag": null
+   },
+   {
+    "position": 9,
+    "description": "Drug Infusion",
+    "quantity": "2",
+    "unit_price": "200.00",
+    "item_code": "PROC-INFUS",
+    "catalog_item_id": 14,
+    "price_flag": null
+   },
+   {
+    "position": 10,
+    "description": "PK Blood Draw",
+    "quantity": "4",
+    "unit_price": "75.00",
+    "item_code": "PROC-PK",
+    "catalog_item_id": 15,
+    "price_flag": null
+   },
+   {
+    "position": 11,
+    "description": "IRB/Ethics Fees",
+    "quantity": "1",
+    "unit_price": "550.00",
+    "item_code": "ADMIN-IRB",
+    "catalog_item_id": 27,
+    "price_flag": [
+     "550.00",
+     "500.00"
+    ]
+   }
+  ]
+ },
+ "large_invoice": {
+  "file": "large-invoice.pdf",
+  "sponsor": {
+   "id": 1,
+   "levels": [
+    "exact"
+   ]
+  },
+  "study": {
+   "id": 1,
+   "levels": [
+    "exact"
+   ]
+  },
+  "site": {
+   "id": 3,
+   "levels": [
+    "exact"
+   ]
+  },
+  "total": "29191.00",
+  "lines": [
+   {
+    "position": 1,
+    "description": "Site Admin",
+    "quantity": "1",
+    "unit_price": "350.00",
+    "item_code": "ADMIN-SITE",
+    "catalog_item_id": 26,
+    "price_flag": null
+   },
+   {
+    "position": 2,
+    "description": "Screening Visit",
+    "quantity": "5",
+    "unit_price": "450.00",
+    "item_code": "VISIT-SCR",
+    "catalog_item_id": 1,
+    "price_flag": null
+   },
+   {
+    "position": 3,
+    "description": "Baseline Visit",
+    "quantity": "4",
+    "unit_price": "525.00",
+    "item_code": "VISIT-BL",
+    "catalog_item_id": 2,
+    "price_flag": null
+   },
+   {
+    "position": 4,
+    "description": "Wk 4 Visit",
+    "quantity": "4",
+    "unit_price": "475.00",
+    "item_code": "VISIT-WK4",
+    "catalog_item_id": 3,
+    "price_flag": null
+   },
+   {
+    "position": 5,
+    "description": "Wk 8 Visit",
+    "quantity": "4",
+    "unit_price": "475.00",
+    "item_code": "VISIT-WK8",
+    "catalog_item_id": 4,
+    "price_flag": null
+   },
+   {
+    "position": 6,
+    "description": "Week 12 Visit",
+    "quantity": "4",
+    "unit_price": "500.00",
+    "item_code": "VISIT-WK12",
+    "catalog_item_id": 5,
+    "price_flag": null
+   },
+   {
+    "position": 7,
+    "description": "Week 16 Visit",
+    "quantity": "4",
+    "unit_price": "500.00",
+    "item_code": "VISIT-WK16",
+    "catalog_item_id": 6,
+    "price_flag": null
+   },
+   {
+    "position": 8,
+    "description": "Wk 24 Visit",
+    "quantity": "3",
+    "unit_price": "525.00",
+    "item_code": "VISIT-WK24",
+    "catalog_item_id": 8,
+    "price_flag": null
+   },
+   {
+    "position": 9,
+    "description": "End of Study Visit",
+    "quantity": "2",
+    "unit_price": "550.00",
+    "item_code": "VISIT-EOS",
+    "catalog_item_id": 9,
+    "price_flag": null
+   },
+   {
+    "position": 10,
+    "description": "ECG",
+    "quantity": "12",
+    "unit_price": "85.00",
+    "item_code": "PROC-ECG",
+    "catalog_item_id": 11,
+    "price_flag": null
+   },
+   {
+    "position": 11,
+    "description": "Vitals",
+    "quantity": "20",
+    "unit_price": "45.00",
+    "item_code": "PROC-VITAL",
+    "catalog_item_id": 12,
+    "price_flag": null
+   },
+   {
+    "position": 12,
+    "description": "Physical Exam",
+    "quantity": "10",
+    "unit_price": "120.00",
+    "item_code": "PROC-PHYS",
+    "catalog_item_id": 13,
+    "price_flag": null
+   },
+   {
+    "position": 13,
+    "description": "IV Drug Administration",
+    "quantity": "8",
+    "unit_price": "200.00",
+    "item_code": "PROC-INFUS",
+    "catalog_item_id": 14,
+    "price_flag": null
+   },
+   {
+    "position": 14,
+    "description": "Pharmacokinetic Sampling",
+    "quantity": "16",
+    "unit_price": "75.00",
+    "item_code": "PROC-PK",
+    "catalog_item_id": 15,
+    "price_flag": null
+   },
+   {
+    "position": 15,
+    "description": "CBC w/ Differential",
+    "quantity": "10",
+    "unit_price": "95.00",
+    "item_code": "LAB-CBC",
+    "catalog_item_id": 16,
+    "price_flag": null
+   },
+   {
+    "position": 16,
+    "description": "Comprehensive Metabolic Panel",
+    "quantity": "10",
+    "unit_price": "110.00",
+    "item_code": "LAB-CMP",
+    "catalog_item_id": 17,
+    "price_flag": null
+   },
+   {
+    "position": 17,
+    "description": "UA",
+    "quantity": "8",
+    "unit_price": "55.00",
+    "item_code": "LAB-URINAL",
+    "catalog_item_id": 18,
+    "price_flag": null
+   },
+   {
+    "position": 18,
+    "description": "Hepatic Function Panel",
+    "quantity": "8",
+    "unit_price": "88.00",
+    "item_code": "LAB-LFT",
+    "catalog_item_id": 20,
+    "price_flag": null
+   },
+   {
+    "position": 19,
+    "description": "Lipid Panel",
+    "quantity": "6",
+    "unit_price": "78.00",
+    "item_code": "LAB-LIPID",
+    "catalog_item_id": 22,
+    "price_flag": null
+   },
+   {
+    "position": 20,
+    "description": "CT Scan - Chest/Abdomen",
+    "quantity": "2",
+    "unit_price": "475.00",
+    "item_code": "IMG-CT",
+    "catalog_item_id": 23,
+    "price_flag": [
+     "475.00",
+     "450.00"
+    ]
+   },
+   {
+    "position": 21,
+    "description": "IRB Annual Maintenance",
+    "quantity": "1",
+    "unit_price": "500.00",
+    "item_code": "ADMIN-IRB",
+    "catalog_item_id": 27,
+    "price_flag": null
+   },
+   {
+    "position": 22,
+    "description": "Drug Shipping (cold chain)",
+    "quantity": "3",
+    "unit_price": "125.00",
+    "item_code": "PASS-COLD",
+    "catalog_item_id": 64,
+    "price_flag": null
+   },
+   {
+    "position": 23,
+    "description": "Lab Supplies",
+    "quantity": "10",
+    "unit_price": "42.00",
+    "item_code": "PASS-KIT",
+    "catalog_item_id": 31,
+    "price_flag": null
+   },
+   {
+    "position": 24,
+    "description": "Sample Transport",
+    "quantity": "8",
+    "unit_price": "58.00",
+    "item_code": "PASS-SPEC",
+    "catalog_item_id": 32,
+    "price_flag": null
+   },
+   {
+    "position": 25,
+    "description": "Parking Reimbursement",
+    "quantity": "15",
+    "unit_price": "25.00",
+    "item_code": null,
+    "catalog_item_id": null,
+    "price_flag": null
+   },
+   {
+    "position": 26,
+    "description": "Patient Stipend",
+    "quantity": "12",
+    "unit_price": "75.00",
+    "item_code": null,
+    "catalog_item_id": null,
+    "price_flag": null
+   },
+   {
+    "position": 27,
+    "description": "Translator Services",
+    "quantity": "3",
+    "unit_price": "150.00",
+    "item_code": null,
+    "catalog_item_id": null,
+    "price_flag": null
+   }
+  ]
+ },
+ "mismatched_metadata_invoice": {
+  "file": "mismatched-metadata-invoice.pdf",
+  "sponsor": {
+   "id": 1,
+   "levels": [
+    "likely"
+   ]
+  },
+  "study": {
+   "id": 2,
+   "levels": [
+    "likely"
+   ]
+  },
+  "site": {
+   "id": 6,
+   "levels": [
+    "likely",
+    "uncertain"
+   ]
+  },
+  "total": "3220.00",
+  "lines": [
+   {
+    "position": 1,
+    "description": "Site Admin Fee",
+    "quantity": "1",
+    "unit_price": "325.00",
+    "item_code": "ADMIN-SITE",
+    "catalog_item_id": 110,
+    "price_flag": null
+   },
+   {
+    "position": 2,
+    "description": "Screening",
+    "quantity": "2",
+    "unit_price": "425.00",
+    "item_code": "VISIT-SCR",
+    "catalog_item_id": 101,
+    "price_flag": null
+   },
+   {
+    "position": 3,
+    "description": "Baseline",
+    "quantity": "2",
+    "unit_price": "500.00",
+    "item_code": "VISIT-BL",
+    "catalog_item_id": 102,
+    "price_flag": null
+   },
+   {
+    "position": 4,
+    "description": "Month 3 Follow-up",
+    "quantity": "1",
+    "unit_price": "475.00",
+    "item_code": "VISIT-MONTH3",
+    "catalog_item_id": 103,
+    "price_flag": null
+   },
+   {
+    "position": 5,
+    "description": "ECG",
+    "quantity": "3",
+    "unit_price": "80.00",
+    "item_code": "PROC-ECG",
+    "catalog_item_id": 106,
+    "price_flag": null
+   },
+   {
+    "position": 6,
+    "description": "CBC",
+    "quantity": "2",
+    "unit_price": "90.00",
+    "item_code": "LAB-CBC",
+    "catalog_item_id": 107,
+    "price_flag": null
+   },
+   {
+    "position": 7,
+    "description": "Lipid Profile",
+    "quantity": "2",
+    "unit_price": "75.00",
+    "item_code": "LAB-LIPID",
+    "catalog_item_id": 109,
+    "price_flag": null
+   }
+  ]
+ }
+}

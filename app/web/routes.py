@@ -97,13 +97,24 @@ async def upload(request: Request, background_tasks: BackgroundTasks, file: list
 
 @router.post("/invoices/{invoice_id}/retry")
 def retry(request: Request, invoice_id: int, background_tasks: BackgroundTasks):
+    """Rerun whatever failed: reading (and suggestions), or matching for the lines without a result."""
+    from app.steps.line_matching import run_matching
+
     with _sessions(request)() as s:
+        invoice = s.get(Invoice, invoice_id)
+        failed = Status(invoice.status) if invoice else None
         try:
-            claim(s, invoice_id, expected={Status.EXTRACTION_FAILED}, new=Status.EXTRACTING)
+            if failed == Status.MATCHING_FAILED:
+                claim(s, invoice_id, expected={Status.MATCHING_FAILED}, new=Status.MATCHING)
+                s.add(Run(invoice_id=invoice_id, step="matching", started_at=now_iso()))
+                step = run_matching
+            else:
+                claim(s, invoice_id, expected={Status.EXTRACTION_FAILED}, new=Status.EXTRACTING)
+                step = run_extraction
         except StatusConflict as conflict:
             return conflict_page(request, invoice_id, conflict.current)
         s.commit()
-    start(background_tasks, request.app, invoice_id, run_extraction)
+    start(background_tasks, request.app, invoice_id, step)
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
 
 

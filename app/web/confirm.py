@@ -143,7 +143,10 @@ def confirm(request: Request, invoice_id: int, background_tasks: BackgroundTasks
 
 
 def start_matching(background_tasks: BackgroundTasks, app, invoice_id: int) -> None:
-    """Line matching arrives with the line matching task; until then nothing runs after Confirm."""
+    from app.jobs import start
+    from app.steps.line_matching import run_matching
+
+    start(background_tasks, app, invoice_id, run_matching)
 
 
 def _match_counts(s, invoice_id: int) -> tuple[int, int]:
