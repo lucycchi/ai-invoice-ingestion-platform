@@ -40,9 +40,15 @@
       "date": "2026-10-20",
       "tag": "tortoise/milestone-3",
       "milestone": 3
+    },
+    {
+      "stage": "gate",
+      "date": "2026-10-20",
+      "tag": "tortoise/milestone-4",
+      "milestone": 4
     }
   ],
-  "milestone": 3,
+  "milestone": 4,
   "milestones": 4,
   "board": {
     "number": 5,
@@ -109,37 +115,37 @@
         "issue": 9,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv7s",
         "title": "Line matching step with groups, cache, checks and retries (Task 9)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "10": {
         "issue": 10,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQv-g",
         "title": "Price flags (Task 10)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "11": {
         "issue": 11,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwB4",
         "title": "Review screen with progress, overrides and on-screen timing (Task 11)",
-        "status": "Awaiting gate"
+        "status": "Done"
       },
       "12": {
         "issue": 12,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwFA",
         "title": "Finalizing and the JSON download (Task 12)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "13": {
         "issue": 13,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwJQ",
         "title": "Live tests on the samples, image files and the hostile-text invoice (Task 13)",
-        "status": "To do"
+        "status": "Awaiting gate"
       },
       "14": {
         "issue": 14,
         "item": "PVTI_lAHOAwRKms4Bn_FUzhCQwLo",
         "title": "Timings, README, write-up and delivery (Task 14)",
-        "status": "To do"
+        "status": "Awaiting gate"
       }
     },
     "field": "PVTSSF_lAHOAwRKms4Bn_FUzhmhMqE",
@@ -151,8 +157,8 @@
     }
   },
   "last_gate": {
-    "milestone": 3,
+    "milestone": 4,
     "passed": true,
-    "fingerprint": "53ee0cce6b4888ab2a16dad70049cbc2dd676476"
+    "fingerprint": "16724facd36e03ec0d07fa85da2975508ea78f0a"
   }
 }
