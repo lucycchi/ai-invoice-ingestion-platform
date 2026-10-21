@@ -50,7 +50,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <h2>Summary</h2>
 <p><strong>The problem.</strong> A clinical trial site sends an invoice to the drug company paying for the trial (the sponsor). Someone has to tie the invoice to the right sponsor, study and site, and check each billed line against the approved items and prices for that sponsor and study (the catalog). The take-home brief adds one hard rule: line items may only be matched after a person has confirmed the sponsor and study, because those decide which catalog applies.</p>
 <p><strong>The approach.</strong> One Python web app, built with FastAPI and plain server-rendered pages, runs as a third container next to the provided reference API and its Postgres database. It keeps its own data in an SQLite file on a Docker volume. Claude (<code>claude-opus-5-5</code>) reads each uploaded file and later suggests a catalog item for each line. Matching the invoice's header facts to sponsors, studies and sites is ordinary code. Every step is guarded by a stored status on the invoice, and the server refuses any step whose status is wrong, which is what makes the confirmation gate real.</p>
-<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. Milestones 1 to 3 are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions, the confirmation gate, line matching, price flags and the review screen. Finalizing, the JSON download, live tests and delivery follow in milestone 4.</p>
+<p><strong>Where the project stands.</strong> The intent (<code>docs/DESIGN.md</code>, tagged <code>tortoise/ideas</code>) and the spec (<code>docs/SPEC.md</code>, 63 requirements, tagged <code>tortoise/spec</code>) are approved. This document is the architecture, approved and tagged <code>tortoise/architecture</code>. All four milestones are built: the app skeleton, database, reference API client, status guard, upload screen, Claude client, extraction, metadata suggestions, the confirmation gate, line matching, price flags, the review screen, finalizing, the JSON download, the live tests and delivery.</p>
 <p>Requirements are referred to by name with their spec number in brackets, such as "the gate refusing early matching (R28)".</p>
 <h2>Diagrams in this document</h2>
 <table>
@@ -106,7 +106,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     pages --&gt;|"asks to start or change a step"| status
     pages --&gt;|"hands claimed work"| runner
     runner --&gt;|"runs reading"| extract
-    runner --&gt;|"runs suggestions"| meta
+    extract --&gt;|"asks for suggestions after storing the reading"| meta
     runner --&gt;|"runs matching"| lines
     extract --&gt;|"sends the file"| claudeclient
     lines --&gt;|"sends line groups"| claudeclient
@@ -176,7 +176,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice this reading belongs to, unique"
-        BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
+        BOOLEAN is_invoice "yes: only readings Claude accepted as invoices are stored"
         TEXT header "text: extracted header fields as JSON"
         VARCHAR printed_total "exact decimal, or empty if none"
         TEXT arithmetic_warnings "text: list of warnings as JSON"
@@ -334,6 +334,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     participant R as Background runner
 
     U-&gt;&gt;P: 1. presses Confirm with sponsor, study, site
+    P-&gt;&gt;P: checks the status first, refusing 409 if not awaiting confirmation
     P-&gt;&gt;A: 2. checks the three choices exist
     A--&gt;&gt;P: 3. returns the records, not found, or no answer
     P-&gt;&gt;P: 4. checks the study belongs to the sponsor
@@ -348,7 +349,10 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     end</pre>
 <p>This shows the gate: the only way into line matching.</p>
 <ol>
-<li>The person presses Confirm. The form sends the chosen sponsor, study and site IDs.</li>
+<li>The person presses Confirm. The form sends the chosen sponsor, study and site IDs. The handler first</li>
+</ol>
+<p>checks that the invoice is awaiting confirmation, answering 409 otherwise, whatever the choices are. (Opening the confirmation page itself reloads the reference choices; if the reference API doesn't answer, the page shows that error.)</p>
+<ol>
 <li>The handler asks the reference API client for each record.</li>
 <li>A missing record refuses Confirm with HTTP 422 and a message naming it (the Confirm check, R61).</li>
 </ol>
@@ -500,7 +504,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <li>The export module builds the file.</li>
 <li>It reads everything it needs from the data store only, including the catalog snapshot, and</li>
 </ol>
-<p>returns the file with the fields the spec lists (R50).</p>
+<p>returns the file with the fields the spec lists (R50); each line also says <code>"no_match": true</code> when it has no catalog item. The download's file name is the invoice number with every character other than letters, digits, dot, dash and underscore replaced, since that number comes from an untrusted document. An unknown invoice answers 404, one not yet finalized 409.</p>
 <h2>5. User flow</h2>
 <pre class="mermaid">flowchart TD
     up["Upload screen:&lt;br/&gt;pick a file"]
@@ -606,7 +610,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
     store[("App database and files")]
 
     file --&gt;|"whole file, for reading"| app
-    app --&gt;|"file bytes, once per reading"| claude
+    app --&gt;|"file bytes, on each reading attempt"| claude
     lines --&gt;|"one group at a time"| app
     catalog --&gt;|"catalog text, every matching call"| app
     app --&gt;|"lines plus catalog"| claude
@@ -726,13 +730,13 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li><code>app/config.py</code> (not drawn) reads the settings: the three in <code>.env</code>, plus <code>DATA_DIR</code> (default</li>
 </ul>
-<p><code>/data</code>, where the database and uploads live). The API key is held as a secret value that is hidden when the settings are printed.</p>
+<p><code>/data</code>, where the database and uploads live) and <code>ALLOWED_HOSTS</code> (default <code>localhost</code> and <code>127.0.0.1</code>, the only host names served). The API key is held as a secret value that is hidden when the settings are printed.</p>
 <ul>
 <li><code>app/uploads.py</code> (not drawn) checks an upload and stores it under a generated name.</li>
 <li><code>app/clock.py</code> (not drawn) gives the current time as ISO 8601 text.</li>
 <li><code>app/web/</code> holds the route handlers (<code>routes.py</code> for uploads, progress and the invoice page;</li>
 </ul>
-<p><code>confirm.py</code> for the confirmation screen and the gate; <code>review.py</code> for matching progress, the review screen, catalog search, overrides, undo and the on-screen time report), the Jinja2 templates, the static htmx file, and <code>cross_site.py</code>, which serves only <code>localhost</code> and <code>127.0.0.1</code> (blocking DNS-rebinding attacks) and refuses state-changing requests a browser marks as coming from another site, or whose Origin isn't the app's own address and port (HTTP 403).</p>
+<p><code>confirm.py</code> for the confirmation screen and the gate; <code>review.py</code> for matching progress, the review screen, catalog search, overrides, undo and the on-screen time report; <code>finalize.py</code> for the finalize summary, finalizing and the JSON download), the Jinja2 templates, the static htmx file, and <code>cross_site.py</code>, which serves only <code>localhost</code> and <code>127.0.0.1</code> (blocking DNS-rebinding attacks) and refuses state-changing requests a browser marks as coming from another site, or whose Origin isn't the app's own address and port (HTTP 403).</p>
 <ul>
 <li><code>app/prompts/</code> holds the instructions sent to Claude, starting with <code>extraction.md</code>.</li>
 <li><code>app/status.py</code> holds the table of allowed moves and the claim function. It is the only place a</li>
@@ -758,9 +762,13 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 </ul>
 <p>recorded from the running API in <code>tests/fixtures/reference/</code>, saved Claude answers in <code>tests/fixtures/claude/</code>, the expected results for the four samples in <code>tests/fixtures/expected_results.json</code>, and the live tests marked <code>live</code>.</p>
 <ul>
-<li><code>scripts/make_image_fixtures.py</code> makes the PNG and photo-like test images (R57), using <code>pypdfium2</code></li>
+<li><code>scripts/make_test_files.py</code> makes the PNG and photo-like test images (R57), using <code>pypdfium2</code> to</li>
 </ul>
-<p>to draw PDF pages and <code>Pillow</code> to rotate and blur.</p>
+<p>draw PDF pages and <code>Pillow</code> to rotate and blur, and the hostile-text invoice (R54), using <code>reportlab</code> through the provided <code>scripts/generate_sample_invoices.py</code>.</p>
+<ul>
+<li><code>app/report_timings.py</code> prints the README's timing table (<code>python -m app.report_timings</code>); a run</li>
+</ul>
+<p>is a "repeat" when the same file was uploaded within five minutes of its first run.</p>
 <h2>13. Deployment</h2>
 <pre class="mermaid">flowchart LR
     browser["Web browser&lt;br/&gt;on the laptop"]
@@ -781,7 +789,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <ul>
 <li>The new <code>app</code> service is added to the existing <code>docker-compose.yml</code>. It depends on the <code>api</code></li>
 </ul>
-<p>service, reads <code>.env</code>, publishes port 8080 and mounts the <code>app_data</code> volume at <code>/data</code>.</p>
+<p>service, reads <code>.env</code>, publishes port 8080 on <code>127.0.0.1</code> only (not on other network interfaces), and mounts the <code>app_data</code> volume at <code>/data</code>.</p>
 <ul>
 <li>Inside Compose the app reaches the reference API at <code>http://api:8000</code> (the address setting, R2).</li>
 <li>The app image uses Python 3.13 slim, like the reference API's image.</li>
@@ -803,6 +811,7 @@ li.task.done .box { background: var(--accent); color: var(--background); }
 <tr><td><code>pypdf</code></td><td>Counting PDF pages for the upload limit</td></tr>
 <tr><td><code>pytest</code></td><td>Tests</td></tr>
 <tr><td><code>pypdfium2</code>, <code>Pillow</code></td><td>Making test images (test-only)</td></tr>
+<tr><td><code>reportlab</code></td><td>Making the hostile-text test invoice (test-only)</td></tr>
 </tbody>
 </table>
 <p><code>pypdf</code> is used only to count pages; reading invoice text is always Claude's job (R11).</p>

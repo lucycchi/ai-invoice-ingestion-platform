@@ -17,10 +17,10 @@ refuses any step whose status is wrong, which is what makes the confirmation gat
 
 **Where the project stands.** The intent (`docs/DESIGN.md`, tagged `tortoise/ideas`) and the spec
 (`docs/SPEC.md`, 63 requirements, tagged `tortoise/spec`) are approved. This document is the
-architecture, approved and tagged `tortoise/architecture`. Milestones 1 to 3 are built: the app skeleton,
+architecture, approved and tagged `tortoise/architecture`. All four milestones are built: the app skeleton,
 database, reference API client, status guard, upload screen, Claude client, extraction, metadata
-suggestions, the confirmation gate, line matching, price flags and the review screen. Finalizing, the
-JSON download, live tests and delivery follow in milestone 4.
+suggestions, the confirmation gate, line matching, price flags, the review screen, finalizing, the JSON
+download, the live tests and delivery.
 
 Requirements are referred to by name with their spec number in brackets, such as "the gate refusing
 early matching (R28)".
@@ -89,7 +89,7 @@ flowchart TB
     pages -->|"asks to start or change a step"| status
     pages -->|"hands claimed work"| runner
     runner -->|"runs reading"| extract
-    runner -->|"runs suggestions"| meta
+    extract -->|"asks for suggestions after storing the reading"| meta
     runner -->|"runs matching"| lines
     extract -->|"sends the file"| claudeclient
     lines -->|"sends line groups"| claudeclient
@@ -160,7 +160,7 @@ erDiagram
     EXTRACTIONS {
         INTEGER id PK "whole number, given automatically"
         INTEGER invoice_id FK "whole number: the invoice this reading belongs to, unique"
-        BOOLEAN is_invoice "yes or no: Claude says it is an invoice"
+        BOOLEAN is_invoice "yes: only readings Claude accepted as invoices are stored"
         TEXT header "text: extracted header fields as JSON"
         VARCHAR printed_total "exact decimal, or empty if none"
         TEXT arithmetic_warnings "text: list of warnings as JSON"
@@ -332,6 +332,7 @@ sequenceDiagram
     participant R as Background runner
 
     U->>P: 1. presses Confirm with sponsor, study, site
+    P->>P: checks the status first, refusing 409 if not awaiting confirmation
     P->>A: 2. checks the three choices exist
     A-->>P: 3. returns the records, not found, or no answer
     P->>P: 4. checks the study belongs to the sponsor
@@ -348,7 +349,10 @@ sequenceDiagram
 
 This shows the gate: the only way into line matching.
 
-1. The person presses Confirm. The form sends the chosen sponsor, study and site IDs.
+1. The person presses Confirm. The form sends the chosen sponsor, study and site IDs. The handler first
+   checks that the invoice is awaiting confirmation, answering 409 otherwise, whatever the choices are.
+   (Opening the confirmation page itself reloads the reference choices; if the reference API doesn't
+   answer, the page shows that error.)
 2. The handler asks the reference API client for each record.
 3. A missing record refuses Confirm with HTTP 422 and a message naming it (the Confirm check, R61).
    If the reference API does not answer, Confirm is refused with HTTP 503 and "Couldn't reach the
@@ -507,7 +511,10 @@ This shows finalizing with acknowledged open problems, then the download.
 7. The finalized page shows "Download JSON".
 8. The export module builds the file.
 9. It reads everything it needs from the data store only, including the catalog snapshot, and
-   returns the file with the fields the spec lists (R50).
+   returns the file with the fields the spec lists (R50); each line also says `"no_match": true` when
+   it has no catalog item. The download's file name is the invoice number with every character other
+   than letters, digits, dot, dash and underscore replaced, since that number comes from an untrusted
+   document. An unknown invoice answers 404, one not yet finalized 409.
 
 ## 5. User flow
 
@@ -635,7 +642,7 @@ flowchart LR
     store[("App database and files")]
 
     file -->|"whole file, for reading"| app
-    app -->|"file bytes, once per reading"| claude
+    app -->|"file bytes, on each reading attempt"| claude
     lines -->|"one group at a time"| app
     catalog -->|"catalog text, every matching call"| app
     app -->|"lines plus catalog"| claude
@@ -778,13 +785,15 @@ This shows where each part lives and which code uses which.
 - `app/main.py` creates the FastAPI app, sets up the database, runs restart recovery (R31), and builds
   the real reference API client from `REFERENCE_API_URL` unless a test passes a stand-in.
 - `app/config.py` (not drawn) reads the settings: the three in `.env`, plus `DATA_DIR` (default
-  `/data`, where the database and uploads live). The API key is held as a secret value that is hidden
+  `/data`, where the database and uploads live) and `ALLOWED_HOSTS` (default `localhost` and
+  `127.0.0.1`, the only host names served). The API key is held as a secret value that is hidden
   when the settings are printed.
 - `app/uploads.py` (not drawn) checks an upload and stores it under a generated name.
 - `app/clock.py` (not drawn) gives the current time as ISO 8601 text.
 - `app/web/` holds the route handlers (`routes.py` for uploads, progress and the invoice page;
   `confirm.py` for the confirmation screen and the gate; `review.py` for matching progress, the
-  review screen, catalog search, overrides, undo and the on-screen time report), the Jinja2 templates, the static htmx file,
+  review screen, catalog search, overrides, undo and the on-screen time report; `finalize.py` for the
+  finalize summary, finalizing and the JSON download), the Jinja2 templates, the static htmx file,
   and `cross_site.py`, which serves only `localhost` and `127.0.0.1` (blocking DNS-rebinding attacks)
   and refuses state-changing requests a browser marks as coming from another site, or whose Origin
   isn't the app's own address and port (HTTP 403).
@@ -804,8 +813,11 @@ This shows where each part lives and which code uses which.
   recorded from the running API in `tests/fixtures/reference/`, saved Claude answers in
   `tests/fixtures/claude/`, the expected results for the four samples in
   `tests/fixtures/expected_results.json`, and the live tests marked `live`.
-- `scripts/make_image_fixtures.py` makes the PNG and photo-like test images (R57), using `pypdfium2`
-  to draw PDF pages and `Pillow` to rotate and blur.
+- `scripts/make_test_files.py` makes the PNG and photo-like test images (R57), using `pypdfium2` to
+  draw PDF pages and `Pillow` to rotate and blur, and the hostile-text invoice (R54), using `reportlab`
+  through the provided `scripts/generate_sample_invoices.py`.
+- `app/report_timings.py` prints the README's timing table (`python -m app.report_timings`); a run
+  is a "repeat" when the same file was uploaded within five minutes of its first run.
 
 ## 13. Deployment
 
@@ -831,7 +843,8 @@ This shows how the pieces run: three containers started by one `docker compose u
 app's data on its own volume (R1, R5).
 
 - The new `app` service is added to the existing `docker-compose.yml`. It depends on the `api`
-  service, reads `.env`, publishes port 8080 and mounts the `app_data` volume at `/data`.
+  service, reads `.env`, publishes port 8080 on `127.0.0.1` only (not on other network interfaces),
+  and mounts the `app_data` volume at `/data`.
 - Inside Compose the app reaches the reference API at `http://api:8000` (the address setting, R2).
 - The app image uses Python 3.13 slim, like the reference API's image.
 - The reference API and its database are unchanged apart from the earlier one-line fix to keep
@@ -852,6 +865,7 @@ app's data on its own volume (R1, R5).
 | `pypdf` | Counting PDF pages for the upload limit |
 | `pytest` | Tests |
 | `pypdfium2`, `Pillow` | Making test images (test-only) |
+| `reportlab` | Making the hostile-text test invoice (test-only) |
 
 `pypdf` is used only to count pages; reading invoice text is always Claude's job (R11).
 

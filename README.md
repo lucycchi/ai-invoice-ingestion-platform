@@ -32,9 +32,14 @@ http://localhost:8000/docs.
 | `ANTHROPIC_MODEL` | No | `claude-opus-5-5` | The Claude model used for reading and matching. |
 | `REFERENCE_API_URL` | No | `http://api:8000` | Where the reference API is. Inside Docker Compose it is the service name; if you run the app directly on your machine, use `http://localhost:8000`. |
 
-The app keeps its own data (an SQLite file and the uploaded files) on the Docker volume `app_data`,
-so it survives restarts. To start over with an empty app: `docker compose down` then
-`docker volume rm ai_invoice_ingestion_platform_ledgerrun_app_data`.
+Two more settings exist for special cases and rarely need changing: `DATA_DIR` (default `/data`, where
+the app keeps its database and uploaded files inside its container) and `ALLOWED_HOSTS` (default
+`["localhost","127.0.0.1"]`, the only host names the app answers to, which blocks attacks from other
+websites).
+
+The app keeps its own data (an SQLite file and the uploaded files) on a Docker volume, so it survives
+restarts. To start over with empty data, run `docker compose down -v`, which removes this project's
+volumes (the reference database re-seeds itself on the next start), then `docker compose up` again.
 
 ## Walking through the four sample invoices
 
@@ -56,6 +61,8 @@ appears.
 close alternatives, and a price flag if the price differs from the catalog. Lines with no catalog
 item are highlighted. Change any line with its picker (and *Undo*), then press *Finalize*: the app
 lists the open problems, you confirm them, and the invoice is locked with a *Download JSON* button.
+In the download, each line has its extracted values, the AI's suggestion, any override, the final
+catalog item (`final_item`), its price flag, and `"no_match": true` when it has no catalog item.
 
 What to expect from each sample:
 
@@ -64,7 +71,7 @@ What to expect from each sample:
 | `simple-invoice.pdf` | 5 lines, total $2,230.00 | Contoso Therapeutics, CATALYST Trial, Willow Creek Clinical Research Center, all **exact** | 5 matched despite rewording ("Site Management Fee" to Site Fee, "Complete Blood Count" to CBC), no price flags |
 | `medium-invoice.pdf` | 11 lines, total $7,145.00 | Northwind Pharma, LUMIN-2024, Harborview Medical Institute, all **exact** | 11 matched; **one price flag**: IRB/Ethics Fees, invoice $550.00 against catalog $500.00 (+10%) |
 | `large-invoice.pdf` | 27 lines over two pages, total $29,191.00 | Northwind Pharma, LUMIN-2024, Highland Ridge Hospital - Research Unit, all **exact** | 24 matched, including abbreviations ("UA", "Wk 4") and ambiguous lines with alternatives shown (such as "ECG"); **one price flag**: CT scan $475.00 against $450.00; **three no-match lines**: parking reimbursement, patient stipend, translator services |
-| `mismatched-metadata-invoice.pdf` | 7 lines, total $3,220.00 | All three **likely**, none exact, each with its reason: the sponsor name differs ("Northwind Pharmaceuticals Inc."), the protocol is not in the reference data but NWD-VER-2023-002 (VERITAS) "differs in the year", and the site name differs but the city, state and investigator match Prairie Field Research Group | 7 matched against the VERITAS catalog |
+| `mismatched-metadata-invoice.pdf` | 7 lines, total $3,220.00 | All three **likely** in our runs (the spec allows the site to come out likely or uncertain), none exact, each with its reason: the sponsor name differs ("Northwind Pharmaceuticals Inc."), the protocol is not in the reference data but NWD-VER-2023-002 (VERITAS) "differs in the year", and the site name differs but the city, state and investigator match Prairie Field Research Group | 7 matched against the VERITAS catalog |
 
 ## Tests
 
@@ -99,9 +106,9 @@ Each sample was run through all four stages in a browser twice, the second time 
 end when the last match is saved. Reading has no on-screen figure; its time runs from the upload.
 
 **The target is under 30 seconds for matching the large invoice. Measured: 9.5 seconds (first run)
-and 9.4 seconds (repeat).** The slowest of all was 10.3 seconds.
+and 9.4 seconds (repeat).** The slowest matching of all was 10.3 seconds; the slowest reading, 11.5 seconds.
 
-| Invoice file | Step | Run | On-screen seconds | Stored seconds | Claude requests | Input tokens | Output tokens | Cache-read tokens | Cache applied |
+| Invoice file | Step | Run | On-screen seconds | Stored seconds | Claude requests | Input tokens | Output tokens | Cache-read tokens | First group warmed the cache |
 |---|---|---|---|---|---|---|---|---|---|
 | simple-invoice.pdf | extraction | first | — | 4.2 | 1 | 3869 | 412 | 0 | no |
 | simple-invoice.pdf | matching | first | 3.2 | 3.0 | 1 | 286 | 286 | 1452 | no |
@@ -120,10 +127,13 @@ and 9.4 seconds (repeat).** The slowest of all was 10.3 seconds.
 | mismatched-metadata-invoice.pdf | extraction | repeat | — | 4.1 | 1 | 3913 | 498 | 0 | no |
 | mismatched-metadata-invoice.pdf | matching | repeat | 7.1 | 4.7 | 2 | 404 | 419 | 3156 | yes |
 
-*Cache applied* means the first group of lines was sent alone to write Claude's prompt cache before the
-others; a one-group invoice (the simple one) has nothing to warm. The cache-read column shows caching
-working on every matching run. Because the live tests had just used the same catalogs, even the "first"
-runs here read from the cache; a cold run was not measured separately. Make your own table with
+*First group warmed the cache* means the first group of lines was sent alone to write Claude's prompt
+cache before the others; a one-group invoice (the simple one) has nothing to warm. The *cache-read
+tokens* column shows whether the cache was actually read, and it was on every matching run. Because the live tests had just used the same catalogs, even the "first"
+runs here read from the cache. So one **cold** run of the large invoice was measured separately, more
+than five minutes after any other use: reading 11.2 seconds, matching **9.4 seconds on screen** (9.3
+stored), with 18,632 cache-read tokens coming from its own first group warming the cache for the other
+four. Cold and warm runs take about the same time. Make your own table with
 `docker compose exec app python -m app.report_timings`.
 
 ## Write-up
