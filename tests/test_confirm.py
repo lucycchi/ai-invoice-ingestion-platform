@@ -289,3 +289,16 @@ def test_study_picker_outage(env):
     response = env[0].get(f"/invoices/{invoice_id}/studies?sponsor_id=2")
     assert response.status_code == 503
     assert "Couldn't reach the reference API" in unescape(response.text)
+
+
+# Regression: ISSUE-001 — changing the sponsor picker made the study picker disappear
+# Found by /qa on 2026-10-20
+# Report: .gstack/qa-reports/run-20261021T023335Z/qa-report-localhost-2026-10-20.md
+def test_sponsor_picker_fills_the_study_picker_in_place(env):
+    import re
+
+    page = env[0].get(f"/invoices/{_upload(env)}").text
+    sponsor = re.search(r'<select name="sponsor_id"[^>]*>', page).group(0)
+    # The form swaps its warnings with outerHTML, and htmx attributes are inherited: without its own
+    # swap, the sponsor picker would replace the whole study <select> with bare <option>s.
+    assert 'hx-target="#study-select"' in sponsor and 'hx-swap="innerHTML"' in sponsor

@@ -20,7 +20,7 @@
         </td>
         <td>
           {% if field == "sponsor" %}
-          <select name="sponsor_id" required hx-get="/invoices/{{ invoice.id }}/studies" hx-trigger="change" hx-target="#study-select" hx-include="this">
+          <select name="sponsor_id" required hx-get="/invoices/{{ invoice.id }}/studies" hx-trigger="change" hx-target="#study-select" hx-swap="innerHTML" hx-include="this">
             <option value="">Choose a sponsor…</option>
             {% for o in options %}<option value="{{ o.id }}"{% if o.id == chosen.sponsor %} selected{% endif %}>{{ o.name }}</option>{% endfor %}
           </select>
