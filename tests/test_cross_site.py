@@ -59,3 +59,10 @@ def test_localhost_names_allowed(client):
         assert client.get("/", headers={"Host": host}).status_code == 200
         response = client.post("/invoices/1/change-metadata", headers={"Host": host, "Origin": f"http://{host}"})
         assert response.status_code != 403
+
+
+def test_other_local_port_refused(client):
+    response = client.post(
+        "/invoices/1/change-metadata", headers={"Host": "localhost:8080", "Origin": "http://localhost:3000"}
+    )
+    assert response.status_code == 403

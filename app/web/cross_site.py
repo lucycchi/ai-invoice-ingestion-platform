@@ -25,8 +25,10 @@ class CrossSiteGuard(BaseHTTPMiddleware):
             if request.headers.get("sec-fetch-site") in ("cross-site", "same-site"):
                 return PlainTextResponse(REFUSAL, status_code=403)
             origin = request.headers.get("origin")
-            # Compared with the fixed list of the app's own host names, never with the request's Host.
-            if origin and urlsplit(origin).hostname not in self.allowed_hosts:
+            # The Host header is trustworthy (TrustedHostMiddleware runs first), so the Origin must
+            # match it exactly, port included, and name one of the app's own hosts.
+            if origin and (urlsplit(origin).hostname not in self.allowed_hosts
+                           or urlsplit(origin).netloc != request.headers.get("host")):
                 return PlainTextResponse(REFUSAL, status_code=403)
         return await call_next(request)
 
