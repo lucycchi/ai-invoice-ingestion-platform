@@ -18,6 +18,11 @@
     .note { padding: .75rem 1rem; border-left: 4px solid var(--warn); background: #fdf6ee; margin: .5rem 0; }
     .status { font-size: .85rem; padding: .1rem .5rem; border-radius: 999px; background: #eef2f7; white-space: nowrap; }
     .muted { color: var(--muted); }
+    .line-row.no-match { background: #fdf2f2; }
+    .line-row.flagged .flag, .flag { color: var(--warn); font-weight: 600; }
+    .changed { color: var(--accent); font-size: .85rem; }
+    .picker { display: flex; gap: .3rem; flex-wrap: wrap; }
+    .picker select, .picker input { max-width: 14rem; }
     button, .button { background: var(--accent); color: #fff; border: 0; padding: .5rem 1rem; border-radius: 4px; cursor: pointer; font: inherit; text-decoration: none; }
   </style>
 </head>

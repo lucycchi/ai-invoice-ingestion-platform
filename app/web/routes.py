@@ -124,6 +124,10 @@ def progress(request: Request, invoice_id: int):
         invoice = s.get(Invoice, invoice_id)
     if invoice is None:
         raise HTTPException(404, "There's no invoice with that number.")
+    if invoice.status == Status.MATCHING:
+        from app.web.review import matching_progress
+
+        return matching_progress(request, invoice)
     if invoice.status != Status.EXTRACTING:
         return HTMLResponse("", headers={"HX-Refresh": "true"})
     return templates.TemplateResponse(request, "progress.html", {"invoice": invoice})
@@ -140,6 +144,11 @@ def invoice_page(request: Request, invoice_id: int, sponsor_id: int | None = Non
         runs = s.query(Run).filter_by(invoice_id=invoice_id).order_by(Run.id).all()
     reading = next((r for r in reversed(runs) if r.step == "extraction"), None)
     confirming = {}
+    if invoice.status in (Status.MATCHING, Status.MATCHING_FAILED, Status.IN_REVIEW, Status.FINALIZED):
+        from app.web.review import review_context
+
+        with _sessions(request)() as s:
+            confirming = review_context(s, invoice_id)
     if invoice.status == Status.AWAITING_CONFIRMATION:
         from app.web.confirm import confirm_context
 

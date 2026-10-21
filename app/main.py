@@ -15,6 +15,7 @@ from app.models import Base
 from app.status import recover_interrupted
 from app.web.confirm import router as confirm_router
 from app.web.cross_site import add_host_guards
+from app.web.review import router as review_router
 from app.web.routes import router
 
 
@@ -45,6 +46,7 @@ def create_app(settings: Settings, claude=None, reference=None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
     app.include_router(router)
     app.include_router(confirm_router)
+    app.include_router(review_router)
 
     @app.get("/health")
     def health():

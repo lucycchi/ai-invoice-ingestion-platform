@@ -2,12 +2,13 @@
 {% block content %}
 <h1>{{ invoice.original_filename }}</h1>
 <p><span class="status">{{ status_label(invoice.status) }}</span>
-  {% if reading_seconds is not none %}<span class="muted"> · Reading took {{ "%.1f"|format(reading_seconds) }} seconds</span>{% endif %}</p>
+  {% if reading_seconds is not none %}<span class="muted"> · Reading took {{ "%.1f"|format(reading_seconds) }} seconds</span>{% endif %}
+  {% if stored_seconds is defined and stored_seconds is not none %}<span class="muted"> · Matching took {{ "%.1f"|format(shown_seconds) ~ " seconds on screen (" if shown_seconds is not none else "" }}{{ "%.1f"|format(stored_seconds) }} seconds stored{{ ")" if shown_seconds is not none else "" }}</span>{% endif %}</p>
 {% if invoice.status_reason %}<div class="message">{{ invoice.status_reason }}</div>{% endif %}
 
 {% if invoice.status == "extracting" %}
   {% include "progress.html" %}
-{% elif invoice.status == "extraction_failed" %}
+{% elif invoice.status in ("extraction_failed", "matching_failed") %}
   <form action="/invoices/{{ invoice.id }}/retry" method="post"><button type="submit">Retry</button></form>
 {% endif %}
 
@@ -19,6 +20,7 @@
 {% else %}
   <p class="muted">The arithmetic checks passed.</p>
 {% endif %}
+{% if rows is not defined %}
 <table>
   <thead><tr><th>#</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead>
   <tbody>
@@ -31,7 +33,16 @@
   </tbody>
 </table>
 {% endif %}
+{% endif %}
 {% endblock %}
+{% if invoice.status == "matching" %}{% include "_matching_progress.html" %}
+{% elif rows is defined %}
+  {% set editable = invoice.status == "in_review" %}
+  {% include "_review.html" %}
+  {% if invoice.status == "in_review" and matching_run and not matching_run.shown_at %}
+    <div hx-post="/invoices/{{ invoice.id }}/shown" hx-trigger="load" hx-swap="none"></div>
+  {% endif %}
+{% endif %}
 {% if invoice.status == "awaiting_confirmation" and header %}{% include "_confirm.html" %}{% endif %}
 {% if invoice.status in ("matching_failed", "in_review") %}<p><a href="/invoices/{{ invoice.id }}/change-metadata">Change the sponsor, study or site</a></p>{% endif %}
 {% endblock %}

@@ -1,0 +1,6 @@
+<div id="progress" hx-get="/invoices/{{ invoice.id }}/progress" hx-trigger="every 1s" hx-swap="outerHTML">
+  <p><strong>Matching line items: {{ done }} of {{ rows|length }} done</strong></p>
+  <table class="review"><tbody>
+  {% for row in rows if row.match %}{% include "_line_row.html" %}{% endfor %}
+  </tbody></table>
+</div>

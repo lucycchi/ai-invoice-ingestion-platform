@@ -563,7 +563,7 @@ Steps:
 
 - [x] Task 9: line matching step with groups, cache, checks and retries. Requirements: R30, R36, R37, R38, R39, R40, R41, R42, R51, R54
 - [x] Task 10: price flags. Requirements: R43, R44, R45
-- [ ] Task 11: review screen with progress, overrides and on-screen timing. Requirements: R33, R46, R47, R48, R51, R52, R53
+- [x] Task 11: review screen with progress, overrides and on-screen timing. Requirements: R33, R46, R47, R48, R51, R52, R53
 
 What the author can look at: confirm the large invoice and watch its 27 lines fill in; see the CT scan
 price flag and the three no-match lines; override "ECG", undo it, and see the summary counts change.
