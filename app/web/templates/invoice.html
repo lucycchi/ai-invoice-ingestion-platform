@@ -21,7 +21,7 @@
   <p class="muted">The arithmetic checks passed.</p>
 {% endif %}
 {% if rows is not defined %}
-<table>
+<div class="table-wrap"><table>
   <thead><tr><th>#</th><th>Description</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Amount</th></tr></thead>
   <tbody>
   {% for line in lines %}
@@ -31,7 +31,7 @@
       <td class="num">{{ "${:,.2f}".format(line.amount) if line.amount is not none else "—" }}</td></tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 {% endif %}
 {% endif %}
 {% endblock %}

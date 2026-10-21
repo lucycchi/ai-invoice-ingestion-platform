@@ -238,3 +238,18 @@ def test_concurrent_shown_reports_keep_the_first(env):
     first = env.matching_run(invoice_id).shown_at
     env.client.post(f"/invoices/{invoice_id}/shown")
     assert env.matching_run(invoice_id).shown_at == first
+
+
+# Regression: ISSUE-002 — on a phone, wide tables made the whole page scroll sideways
+# Found by /qa on 2026-10-20
+# Report: .gstack/qa-reports/run-20261021T023335Z/qa-report-localhost-2026-10-20.md
+def test_every_table_scrolls_inside_its_own_box(env):
+    import re
+
+    invoice_id = env.run()
+    pages = [env.client.get(p).text for p in ("/", f"/invoices/{invoice_id}")]
+    css = env.client.get("/").text
+    assert re.search(r"\.table-wrap\s*\{[^}]*overflow-x:\s*auto", css)
+    for page in pages:
+        tables = page.count("<table")
+        assert tables and page.count('<div class="table-wrap"><table') == tables

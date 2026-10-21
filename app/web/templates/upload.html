@@ -10,7 +10,7 @@
 
 <h2>Invoices</h2>
 {% if invoices %}
-<table>
+<div class="table-wrap"><table>
   <thead><tr><th>File</th><th>Invoice number</th><th>Status</th><th>Uploaded</th></tr></thead>
   <tbody>
   {% for invoice in invoices %}
@@ -22,7 +22,7 @@
     </tr>
   {% endfor %}
   </tbody>
-</table>
+</table></div>
 {% else %}
 <p class="muted">No invoices yet.</p>
 {% endif %}

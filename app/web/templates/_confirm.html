@@ -5,7 +5,7 @@
 {% else %}
 <form id="confirm-form" action="/invoices/{{ invoice.id }}/confirm" method="post"
       hx-get="/invoices/{{ invoice.id }}/warnings" hx-trigger="change" hx-target="#warnings" hx-swap="outerHTML">
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Field</th><th>On the invoice</th><th>Suggestion</th><th>Your choice</th></tr></thead>
     <tbody>
     {% for field, printed, options in [("sponsor", header.sponsor_name, sponsors), ("study", (header.study_name or "") ~ (" · " ~ header.protocol_number if header.protocol_number else ""), studies), ("site", header.site_name, sites)] %}
@@ -39,7 +39,7 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% with warnings=choice_warnings %}{% include "_warnings.html" %}{% endwith %}
   <p><button type="submit">Confirm</button></p>
 </form>
