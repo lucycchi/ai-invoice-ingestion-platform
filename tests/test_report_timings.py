@@ -40,6 +40,21 @@ def test_table_columns_and_values(tmp_path):
     header = table.splitlines()[0]
     assert header == "| " + " | ".join(COLUMNS) + " |"
     assert COLUMNS == ["Invoice file", "Step", "Run", "On-screen seconds", "Stored seconds", "Claude requests",
-                       "Input tokens", "Output tokens", "Cache-read tokens", "Cache applied"]
+                       "Input tokens", "Output tokens", "Cache-read tokens", "First group warmed the cache"]
     assert "| large-invoice.pdf | matching | first | 9.4 | 8.4 | 5 | 1550 | 1620 | 18632 | yes |" in table
     assert "| large-invoice.pdf | extraction | first | — | 14.0 | 1 | 5933 | 1373 | 0 | no |" in table
+
+
+def test_repeat_window_counts_from_the_first_run(tmp_path):
+    sessions = _setup(tmp_path, [
+        ("large-invoice.pdf", "2026-10-21T10:00:00.000Z"),
+        ("large-invoice.pdf", "2026-10-21T10:04:00.000Z"),
+        ("large-invoice.pdf", "2026-10-21T10:08:00.000Z"),
+    ])
+    with sessions() as s:
+        rows = [r for r in timing_rows(s) if r["step"] == "matching"]
+    assert [r["run"] for r in rows] == ["first", "repeat", "first"]
+
+
+def test_cache_column_says_what_it_means():
+    assert "First group warmed the cache" in COLUMNS and "Cache applied" not in COLUMNS

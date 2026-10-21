@@ -80,7 +80,8 @@ def test_studies_filtered(env):
 def test_confirm_starts_matching(env):
     invoice_id = _upload(env)
     response = _confirm(env, invoice_id, 2, 3, 1)
-    assert response.status_code == 303 and response.headers["location"] == f"/invoices/{invoice_id}"
+    # The page after Confirm follows matching live, so it may report when the results are on screen.
+    assert response.status_code == 303 and response.headers["location"] == f"/invoices/{invoice_id}?from=matching"
     invoice = _invoice(env, invoice_id)
     assert invoice.status == "in_review"  # matching ran in the background after Confirm
     assert (invoice.confirmed_sponsor_id, invoice.confirmed_study_id, invoice.confirmed_site_id) == (2, 3, 1)

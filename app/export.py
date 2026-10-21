@@ -51,6 +51,7 @@ def build_export(session, invoice_id: int) -> dict:
                 "item_code": override_item.item_code if override_item else None,
             },
             "final_item": _item(items.get(current_item_id(match))) if match else None,
+            "no_match": match is not None and current_item_id(match) is None,
             "price_flag": json.loads(match.price_flag) if match and match.price_flag else None,
         })
     return {

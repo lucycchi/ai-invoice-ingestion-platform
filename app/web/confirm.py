@@ -139,7 +139,9 @@ def confirm(request: Request, invoice_id: int, background_tasks: BackgroundTasks
         s.add(Run(invoice_id=invoice_id, step="matching", started_at=received_at))
         s.commit()
     start_matching(background_tasks, request.app, invoice_id)
-    return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+    # The page after Confirm follows matching live, so it may report when every result is on screen,
+    # even if matching finishes before the page has loaded.
+    return RedirectResponse(f"/invoices/{invoice_id}?from=matching", status_code=303)
 
 
 def start_matching(background_tasks: BackgroundTasks, app, invoice_id: int) -> None:

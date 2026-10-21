@@ -3,7 +3,7 @@
 import json
 import re
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.clock import now_iso
@@ -44,8 +44,10 @@ def _summary_page(request: Request, invoice_id: int, problems: dict, status_code
 def finalize_page(request: Request, invoice_id: int):
     with request.app.state.sessions() as s:
         invoice = s.get(Invoice, invoice_id)
-        if invoice is None or invoice.status != Status.IN_REVIEW:
-            return conflict_page(request, invoice_id, Status(invoice.status) if invoice else None)
+        if invoice is None:
+            raise HTTPException(404, "There's no invoice with that number.")
+        if invoice.status != Status.IN_REVIEW:
+            return conflict_page(request, invoice_id, Status(invoice.status))
         problems = open_problems(s, invoice_id)
     return _summary_page(request, invoice_id, problems)
 
@@ -79,8 +81,10 @@ def finalize(request: Request, invoice_id: int, no_match: int = Form(...), price
 def export(request: Request, invoice_id: int):
     with request.app.state.sessions() as s:
         invoice = s.get(Invoice, invoice_id)
-        if invoice is None or invoice.status != Status.FINALIZED:
-            return conflict_page(request, invoice_id, Status(invoice.status) if invoice else None)
+        if invoice is None:
+            raise HTTPException(404, "There's no invoice with that number.")
+        if invoice.status != Status.FINALIZED:
+            return conflict_page(request, invoice_id, Status(invoice.status))
         data = build_export(s, invoice_id)
     return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="{download_name(data, invoice_id)}"'})
 

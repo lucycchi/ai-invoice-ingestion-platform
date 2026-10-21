@@ -31,7 +31,8 @@ def client(tmp_path_factory):
     try:
         settings = get_settings(env_file=str(ROOT / ".env"))
     except MissingSetting:
-        pytest.skip("ANTHROPIC_API_KEY is not set in .env")
+        # Asking for the live tests without a key must not look like a pass.
+        pytest.fail("The live tests need ANTHROPIC_API_KEY in .env (copy .env.example to .env and add your key).")
     settings.data_dir = tmp_path_factory.mktemp("live-data")
     settings.allowed_hosts = ["localhost", "127.0.0.1", "testserver"]
     app = create_app(settings, reference=ReferenceClient("http://localhost:8000"))
@@ -98,8 +99,10 @@ def test_pdf_samples(client):
         assert total == Decimal(expected["total"]), (name, total)
         assert len(lines) == len(expected["lines"]), (name, len(lines))
         for line, want in zip(lines, expected["lines"]):
+            assert line.description == want["description"], (name, line.position, line.description)
             assert Decimal(str(line.quantity)) == Decimal(want["quantity"]), (name, line.position)
             assert line.unit_price == Decimal(want["unit_price"]), (name, line.position)
+            assert line.amount == Decimal(want["quantity"]) * Decimal(want["unit_price"]), (name, line.position)
             code, flag = got[line.position]
             if want["item_code"] is None:
                 assert code is None, (name, line.position, "expected no match", code)
@@ -132,6 +135,7 @@ def test_photo_recorded(client):
     invoice_id = upload(client, GENERATED / "simple-invoice-photo.jpg")
     state, reason = status(client, invoice_id)
     print(f"PHOTO status: {state} {reason or ''}")
+    assert state == "awaiting_confirmation", "the photo-like copy should at least be read"
     if state == "awaiting_confirmation":
         total, lines = reading(client, invoice_id)
         print(f"PHOTO total {total}, {len(lines)} lines: " + "; ".join(
@@ -149,6 +153,12 @@ def test_hostile_invoice(client):
     for want in medium["lines"]:
         assert got[want["position"]][0] == want["item_code"], (want["position"], got[want["position"]])
     print(f"HOSTILE line 12 matched to: {got[12][0]}")
+    # Price flags and arithmetic are decided in code, so the hostile line can't change them.
+    assert [(p, flag) for p, (_, flag) in got.items() if flag and p != 12] == [
+        (11, "Invoice $550.00, catalog $500.00, +$50.00 (+10%)")]
+    with client.app.state.sessions() as s:
+        warnings = json.loads(s.query(Extraction).filter_by(invoice_id=invoice_id).one().arithmetic_warnings)
+    assert warnings == []
     with client.app.state.sessions() as s:
         snapshot = {i.catalog_item_id for i in s.query(CatalogSnapshotItem).filter_by(invoice_id=invoice_id)}
         stored = {m.ai_catalog_item_id for m in s.query(LineMatch).join(LineItem, LineMatch.line_item_id == LineItem.id)

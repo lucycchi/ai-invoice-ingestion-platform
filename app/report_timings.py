@@ -1,8 +1,10 @@
 """Print a Markdown table of every reading and matching run, for the README's timing report.
 
 Run inside the app's container:  docker compose exec app python -m app.report_timings
-A run is a "repeat" when the same file was uploaded within five minutes of an earlier upload of it
-(Claude's default cache lifetime), otherwise "first".
+A run is a "repeat" when the same file was uploaded within five minutes of its "first" run (Claude's
+default cache lifetime); the next upload after that window starts a new "first". Files are told apart by
+name. "First group warmed the cache" says whether the first group of lines was sent alone to write
+Claude's cache; the cache-read tokens column shows whether the cache was actually read.
 """
 
 from datetime import datetime, timedelta
@@ -11,7 +13,7 @@ from app.clock import seconds_between
 from app.models import Invoice, Run
 
 COLUMNS = ["Invoice file", "Step", "Run", "On-screen seconds", "Stored seconds", "Claude requests",
-           "Input tokens", "Output tokens", "Cache-read tokens", "Cache applied"]
+           "Input tokens", "Output tokens", "Cache-read tokens", "First group warmed the cache"]
 REPEAT_WINDOW = timedelta(minutes=5)
 
 
@@ -25,13 +27,16 @@ def _seconds(value: float | None) -> str:
 
 def timing_rows(session) -> list[dict]:
     invoices = session.query(Invoice).order_by(Invoice.uploaded_at).all()
-    previous_upload: dict[str, datetime] = {}
+    first_run: dict[str, datetime] = {}
     kind = {}
     for invoice in invoices:
         uploaded = _time(invoice.uploaded_at)
-        last = previous_upload.get(invoice.original_filename)
-        kind[invoice.id] = "repeat" if last and uploaded - last <= REPEAT_WINDOW else "first"
-        previous_upload[invoice.original_filename] = uploaded
+        first = first_run.get(invoice.original_filename)
+        if first and uploaded - first <= REPEAT_WINDOW:
+            kind[invoice.id] = "repeat"
+        else:
+            kind[invoice.id] = "first"
+            first_run[invoice.original_filename] = uploaded
     names = {invoice.id: invoice.original_filename for invoice in invoices}
     rows = []
     for run in session.query(Run).order_by(Run.invoice_id, Run.id):

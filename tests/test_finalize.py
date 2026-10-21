@@ -193,3 +193,44 @@ def test_download_name_falls_back(env):
     _finalize(env, invoice_id, 3, 1)
     assert env.client.get(f"/invoices/{invoice_id}/export.json").headers["content-disposition"] == (
         f'attachment; filename="invoice-{invoice_id}.json"')
+
+
+def test_unknown_invoice_is_404(env):
+    assert env.client.get("/invoices/999/finalize").status_code == 404
+    assert env.client.get("/invoices/999/export.json").status_code == 404
+
+
+def test_no_match_lines_say_so(env):
+    invoice_id = env.run()
+    _finalize(env, invoice_id, 3, 1)
+    lines = env.client.get(f"/invoices/{invoice_id}/export.json").json()["lines"]
+    assert [l["position"] for l in lines if l["no_match"]] == [25, 26, 27]
+    assert all(l["final_item"] is None for l in lines if l["no_match"])
+    assert all(l["no_match"] is False for l in lines if l["final_item"])
+
+
+def test_export_values(env):
+    invoice_id = env.run()
+    _finalize(env, invoice_id, 3, 1)
+    first = env.client.get(f"/invoices/{invoice_id}/export.json").json()["lines"][0]
+    assert first["ai_suggestion"] == {"item_code": "ADMIN-SITE", "description": "Site Administration Fee",
+                                      "confidence": "high", "reason": "Same item."}
+    assert (first["description"], first["quantity"], first["unit_price"], first["amount"]) == ("Site Admin", 1.0, "350.00", "350.00")
+    assert first["override"] is None and first["price_flag"] is None
+
+
+def test_finalize_with_arithmetic_warnings(env):
+    from tests.test_extraction_step import saved_extraction
+
+    off = saved_extraction("large_invoice")
+    off.lines[0].amount = "$360.00"  # 1 x $350.00 printed as $360.00
+    invoice_id = env.run(extraction=off)
+    page = env.client.get(f"/invoices/{invoice_id}/finalize").text
+    assert "3 lines with no match, 1 price difference, 2 arithmetic warnings" in page
+    assert _finalize(env, invoice_id, 3, 1, 2).status_code == 303
+    data = env.client.get(f"/invoices/{invoice_id}/export.json").json()
+    assert data["arithmetic_warnings"] == [
+        "Line 1: 1 × $350.00 = $350.00, but the invoice says $360.00.",
+        "Total: the lines add up to $29,201.00, but the invoice says $29,191.00.",
+    ]
+    assert data["finalize_summary"]["arithmetic_warnings"] == 2
